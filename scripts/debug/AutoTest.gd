@@ -70,10 +70,10 @@ func _finish(tag: String) -> void:
 	var secs := (Time.get_ticks_msec() - _t0) / 1000.0
 	if failures.is_empty():
 		print("%s OK (%.1f s)" % [tag, secs])
-		get_tree().quit(0)
+		Game.quit(0)
 	else:
 		print("%s FAIL: %s" % [tag, "; ".join(failures)])
-		get_tree().quit(1)
+		Game.quit(1)
 
 
 func _nearest_enemy(w: World, from: Vector2, team: int, max_d: float, creeps_only: bool = true) -> Unit:
@@ -175,6 +175,74 @@ func _run_training() -> void:
 		if t1.hp < t1.max_hp:
 			damaged_tower = true
 	check(damaged_tower or sim.wave_number() >= 4, "le torri vengono attaccate / ondate regolari (ondata %d)" % sim.wave_number())
+
+	# --- Fase 2 ---
+	var sieges := w.sim.unit_list.filter(func(x): return x.kind == Game.Kind.CREEP_SIEGE).size()
+	check(not Game.ENABLE_SIEGE or sieges > 0 or w.sim.wave_number() < 5, "creep d'assedio nella 5ª ondata (%d)" % sieges)
+	# Deny: un proprio creep sotto il 50%
+	if Game.ENABLE_DENY:
+		# creep appena nato vicino alla propria base, lontano dai nemici
+		w.sim._spawn_wave()
+		await _wait_sim(w, w.game_time + 0.1)
+		var ally: Unit = null
+		var best_d := INF
+		for c in w.sim.unit_list:
+			if c.is_creep() and c.alive and c.team == u.team:
+				var dd: float = c.pos.distance_to(MapData.CREEP_SPAWN[u.team])
+				if dd < best_d:
+					best_d = dd
+					ally = c
+		if ally:
+			ally.hp = minf(ally.hp, 15.0)
+			u.pos = ally.pos + Vector2(3, 0)
+			u.prev_pos = u.pos
+			w.send_command(["attack", ally.id])
+			var sd := Time.get_ticks_msec()
+			while ally.alive and Time.get_ticks_msec() - sd < 8000:
+				await get_tree().process_frame
+			check(hd.denies >= 1, "deny di un proprio creep (%d)" % hd.denies)
+	# Meteora (ultimate): livello 6, impara R, lancia su un nemico
+	if Game.ENABLE_ULTIMATE:
+		while hd.level < 6:
+			w.send_command(["cheat", "level"])
+			await _wait_sim(w, w.game_time + 0.1)
+		w.send_command(["learn", 3])
+		await _wait_sim(w, w.game_time + 0.2)
+		check(hd.ability_levels[3] == 1, "Meteora appresa al livello 6")
+		w.send_command(["cheat", "cooldowns"])
+		await _wait_sim(w, w.game_time + 0.2)
+		var tgt := _nearest_enemy(w, u.pos, u.team, 60.0)
+		if tgt == null:
+			w.sim._spawn_wave()
+			await _wait_sim(w, w.game_time + 0.2)
+			tgt = _nearest_enemy(w, u.pos, u.team, 400.0)
+		if tgt:
+			u.pos = tgt.pos + Vector2(-8, 8)
+			u.prev_pos = u.pos
+			var hp0 := tgt.hp
+			w.send_command(["cast", 3, tgt.pos.x, tgt.pos.y, 0])
+			await _wait_sim(w, w.game_time + 0.3)
+			var stunned_seen := false
+			var sm := w.game_time
+			while w.game_time < sm + 2.0:
+				await get_tree().process_frame
+				for c in w.sim.unit_list:
+					if c.team != u.team and c.alive and c.stun_time > 0.0:
+						stunned_seen = true
+			check(hd.cooldowns[3] > 0.0 and (tgt.hp < hp0 or not tgt.alive), "Meteora: danno ad area e ricarica")
+			check(stunned_seen, "Meteora: stordimento dei nemici colpiti")
+	# Oggetti della Fase 2
+	if Game.ENABLE_PHASE2_ITEMS:
+		u.pos = MapData.FOUNTAIN[u.team] + Vector2(5, -5)
+		u.prev_pos = u.pos
+		w.send_command(["cheat", "gold"])
+		w.send_command(["cheat", "gold"])
+		await _wait_sim(w, w.game_time + 0.1)
+		for i in 6:
+			w.send_command(["sell", i])
+		w.send_command(["buy", "vampire"])
+		await _wait_sim(w, w.game_time + 0.2)
+		check(hd.items.has("vampire") and absf(u.lifesteal - 0.15) < 0.001, "Lama del vampiro: rubavita 15%")
 
 	# Scatto
 	if hd.ability_levels[1] == 0:

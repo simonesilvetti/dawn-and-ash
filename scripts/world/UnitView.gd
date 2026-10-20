@@ -24,6 +24,13 @@ const MODELS := {
 		"weapon_r": "Skeleton_Blade.gltf", "weapon_l": "Skeleton_Shield_Small_A.gltf",
 		"idle": "Idle_Combat", "move": "Running_C", "attack": "1H_Melee_Attack_Slice_Diagonal",
 		"death": "Death_C_Skeletons", "spawn": "Spawn_Ground_Skeletons", "run_ref": 4.6, "impact": 0.45},
+	"siege_0": {"file": "Barbarian.glb", "scale": 0.86,
+		"hide": ["1H_Axe_Offhand", "Barbarian_Round_Shield", "1H_Axe", "2H_Axe", "Mug"],
+		"idle": "Idle", "move": "Walking_A", "attack": "Throw", "death": "Death_A",
+		"run_ref": 3.0, "impact": 0.5},
+	"siege_1": {"file": "Skeleton_Minion.glb", "scale": 0.92, "hide": [],
+		"idle": "Idle_Combat", "move": "Walking_D_Skeletons", "attack": "Throw", "death": "Death_C_Skeletons",
+		"spawn": "Spawn_Ground_Skeletons", "run_ref": 3.0, "impact": 0.5},
 	"ranged_1": {"file": "Skeleton_Mage.glb", "scale": 0.66, "hide": [],
 		"weapon_r": "Skeleton_Staff.gltf",
 		"idle": "Idle", "move": "Running_A", "attack": "Spellcast_Shoot", "death": "Death_C_Skeletons",
@@ -71,7 +78,8 @@ static func make_key(k: int, t: int) -> String:
 	match k:
 		Game.Kind.HERO: return "hero"
 		Game.Kind.CREEP_MELEE: return "melee_%d" % t
-		Game.Kind.CREEP_RANGED, Game.Kind.CREEP_SIEGE: return "ranged_%d" % t
+		Game.Kind.CREEP_RANGED: return "ranged_%d" % t
+		Game.Kind.CREEP_SIEGE: return "siege_%d" % t
 	return "building"
 
 
@@ -153,8 +161,8 @@ func _build_character(quality: int) -> void:
 			anim.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
 		_configure_animations(anim, cfg)
 		anim.playback_default_blend_time = 0.15
-	height = 2.3 if kind == Game.Kind.HERO else 1.8
-	bar_width = 70.0 if kind == Game.Kind.HERO else 38.0
+	height = 2.3 if kind == Game.Kind.HERO else (2.4 if kind == Game.Kind.CREEP_SIEGE else 1.8)
+	bar_width = 70.0 if kind == Game.Kind.HERO else (50.0 if kind == Game.Kind.CREEP_SIEGE else 38.0)
 	# mantelli nel colore della squadra; Kael ha anche la fiamma sul bastone
 	_tint_capes()
 	if kind == Game.Kind.HERO:
@@ -309,6 +317,7 @@ func _build_ring() -> void:
 		Game.Kind.ANCIENT: r = 6.0
 		Game.Kind.FOUNTAIN: r = 4.0
 		Game.Kind.CREEP_MELEE, Game.Kind.CREEP_RANGED: r = 0.8
+		Game.Kind.CREEP_SIEGE: r = 1.15
 	ring.scale = Vector3(r, 1, r)
 	ring.position.y = 0.04
 	ring.material_override = ring_material(team, kind == Game.Kind.HERO, false)

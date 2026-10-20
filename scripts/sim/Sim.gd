@@ -180,8 +180,8 @@ func _handle_command(peer: int, cmd: Array) -> void:
 			var t: Unit = units.get(int(cmd[1]))
 			if t == null or not t.targetable() or t == u:
 				return
-			# niente attacco agli alleati (deny = Fase 2)
-			if t.team == u.team:
+			# alleati: solo per negare (deny) i propri creep sotto il 50% di vita
+			if t.team == u.team and not (Game.ENABLE_DENY and t.is_creep() and t.hp < t.max_hp * 0.5):
 				return
 			if u.target_id != t.id:
 				_cancel_windup(u)
@@ -481,6 +481,9 @@ func _update_unit(u: Unit, dt: float) -> void:
 
 	# Esecuzione: bersaglio > movimento
 	var t: Unit = units.get(u.target_id) if u.target_id != 0 else null
+	if t != null and t.team == u.team and t.hp >= t.max_hp * 0.5:
+		t = null   # il deny vale solo sotto il 50%
+		u.target_id = 0
 	if t != null and (not t.targetable()):
 		u.target_id = 0
 		t = null
@@ -802,12 +805,19 @@ func _kill(u: Unit, killer: Unit) -> void:
 	var enemy_team := 1 - u.team
 	if u.is_creep():
 		u.remove_after = time + 2.5
-		if killer_hd != null and killer.team != u.team:
+		var denied := killer_hd != null and killer.team == u.team
+		if killer_hd != null and not denied:
 			var g := _rng.randi_range(Game.GOLD_LAST_HIT.x, Game.GOLD_LAST_HIT.y)
+			if u.kind == Game.Kind.CREEP_SIEGE:
+				g += 30
 			killer_hd.add_gold(g)
 			killer_hd.last_hits += 1
 			events.append(["gold", killer.id, g, u.pos.x, u.pos.y])
-		_share_xp(u.pos, enemy_team, Game.XP_CREEP)
+		if denied:
+			killer_hd.denies += 1
+			events.append(["fx", "deny", u.pos.x, u.pos.y, killer.id])
+		# un creep negato dà solo metà esperienza ai nemici
+		_share_xp(u.pos, enemy_team, Game.XP_CREEP / 2 if denied else Game.XP_CREEP)
 	elif u.kind == Game.Kind.TOWER:
 		for hd in heroes.values():
 			if hd.team == enemy_team:

@@ -75,6 +75,7 @@ var _aoe_ring: MeshInstance3D
 var _cmd_seq: int = 0
 var input_enabled := true
 var _music_state := "calm"
+var _motes: GPUParticles3D
 var _last_combat_time: float = -100.0
 
 const AI_TEAM_COLOR := 0
@@ -108,6 +109,9 @@ func _ready() -> void:
 	cam.vfx = vfx
 	cam.follow_target = func() -> Vector3: return local_hero_pos3()
 	add_child(cam)
+	if quality >= 1:
+		_motes = MapBuilder.make_ambient_motes()
+		add_child(_motes)
 	_build_target_rings()
 	ui = CanvasLayer.new()
 	ui.name = "UI"
@@ -215,6 +219,8 @@ func _process(delta: float) -> void:
 	var t1 := Time.get_ticks_usec()
 	_update_views(delta)
 	var t2 := Time.get_ticks_usec()
+	if _motes:
+		_motes.global_position = cam.focus + Vector3(0, 2.5, 0)
 	if Game.prof_enabled:
 		Game.prof_add("sim+eventi", t1 - t0)
 		Game.prof_add("viste", t2 - t1)
@@ -690,11 +696,12 @@ func _get_view(u: Unit) -> UnitView:
 ## Pre-crea i modelli dei creep (istanziare un glTF animato durante la partita causa scatti).
 func _prewarm_views() -> void:
 	var per_type := 14
-	for k in [Game.Kind.CREEP_MELEE, Game.Kind.CREEP_RANGED]:
+	for k in [Game.Kind.CREEP_MELEE, Game.Kind.CREEP_RANGED, Game.Kind.CREEP_SIEGE]:
 		for t in [0, 1]:
 			var key := UnitView.make_key(k, t)
 			var pool: Array = _view_pool.get(key, [])
-			for i in per_type:
+			var n := per_type if k == Game.Kind.CREEP_MELEE else (6 if k == Game.Kind.CREEP_RANGED else 3)
+			for i in n:
 				var v := UnitView.new()
 				units_root.add_child(v)
 				v.setup(0, k, t, "", quality)
@@ -838,6 +845,9 @@ func _ev_gold(unit_id: int, amount: int, p: Vector2) -> void:
 		return
 	overlay.add_number(MapData.to3(p, 2.5), "+%d" % amount, Color(1.0, 0.85, 0.2), 1.3)
 	Audio.play_ui("coins" if randf() < 0.5 else "coins_2")
+	var wp := MapData.to3(p, 1.5)
+	if not cam.camera.is_position_behind(wp):
+		hud.fly_coins(cam.camera.unproject_position(wp), clampi(amount / 15, 2, 6))
 
 
 func _ev_fx(name: String, p: Vector2, src: int) -> void:
@@ -859,12 +869,18 @@ func _ev_fx(name: String, p: Vector2, src: int) -> void:
 		"explosion": Audio.play_3d("explosion_%d" % randi_range(1, 2), p3)
 		"blink_out": Audio.play_3d("blink", p3)
 		"shockwave": Audio.play_3d("shockwave", p3)
-		"meteor_hit": Audio.play_3d("big_explosion", p3, 3.0)
+		"meteor_hit":
+			Audio.play_3d("big_explosion", p3, 3.0)
+			_hit_stop(0.06)
+		"deny":
+			overlay.add_number(p3 + Vector3(0, 2.2, 0), "!", Color(0.6, 0.85, 1.0), 1.6)
 		"levelup":
 			if u and u.owner_peer == local_peer:
 				Audio.play_ui("level_up")
 				hud.notify("Livello %d!" % local_hero_data().level, Color(1, 0.85, 0.3))
-		"tower_destroyed": Audio.play_3d("big_explosion", p3, 2.0)
+		"tower_destroyed":
+			Audio.play_3d("big_explosion", p3, 2.0)
+			_hit_stop(0.08)
 		"ancient_destroyed":
 			Audio.play_3d("big_explosion", p3, 6.0)
 			if mode == Game.Mode.TRAINING:
@@ -883,6 +899,16 @@ func _ev_notify(what: String, team: int) -> void:
 			Audio.play_ui("alert")
 		"hero_kill":
 			pass
+
+
+## Breve "hit-stop" sui colpi più potenti (solo in allenamento: in rete il tempo non si ferma).
+func _hit_stop(dur: float) -> void:
+	if mode != Game.Mode.TRAINING or Engine.time_scale < Game.base_time_scale * 0.5:
+		return
+	Engine.time_scale = 0.05
+	get_tree().create_timer(dur, true, false, true).timeout.connect(func():
+		if Engine.time_scale < Game.base_time_scale * 0.5 and not over:
+			Engine.time_scale = Game.base_time_scale)
 
 
 func _slow_motion() -> void:
@@ -1011,8 +1037,12 @@ func _update_hover() -> void:
 	var best := INF
 	for id in views:
 		var u: Unit = units.get(id)
-		if u == null or not u.alive or u.team == Game.local_team or u.kind == Game.Kind.FOUNTAIN:
+		if u == null or not u.alive or u.kind == Game.Kind.FOUNTAIN:
 			continue
+		if u.team == Game.local_team:
+			# alleati selezionabili solo per il deny (A + click su un proprio creep sotto il 50%)
+			if not (attack_move_mode and Game.ENABLE_DENY and u.is_creep() and u.hp < u.max_hp * 0.5):
+				continue
 		var v: UnitView = views[id]
 		var d := Vector2(v.vis_pos.x, v.vis_pos.z).distance_to(p)
 		var pick := u.radius + (0.9 if not u.is_building() else 0.8)

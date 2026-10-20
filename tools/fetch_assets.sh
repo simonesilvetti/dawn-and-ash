@@ -19,8 +19,8 @@ fetch() { # url dest
 
 echo "== Personaggi"
 C=assets/models/chars
-for f in Mage Knight Rogue_Hooded; do fetch "$ADV/Characters/gltf/$f.glb" "$C/$f.glb"; done
-for f in mage knight rogue; do fetch "$ADV/Characters/gltf/${f}_texture.png" "$C/${f}_texture.png"; done
+for f in Mage Knight Rogue_Hooded Barbarian; do fetch "$ADV/Characters/gltf/$f.glb" "$C/$f.glb"; done
+for f in mage knight rogue barbarian; do fetch "$ADV/Characters/gltf/${f}_texture.png" "$C/${f}_texture.png"; done
 for f in Skeleton_Warrior Skeleton_Minion Skeleton_Mage; do fetch "$SKE/Characters/gltf/$f.glb" "$C/$f.glb"; done
 fetch "$SKE/Characters/gltf/skeleton_texture.png" "$C/skeleton_texture.png"
 for f in Skeleton_Blade Skeleton_Staff Skeleton_Shield_Small_A; do

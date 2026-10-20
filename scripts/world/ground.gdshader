@@ -10,6 +10,7 @@ uniform vec2 base_r = vec2(-77.0, 77.0);
 uniform vec2 base_d = vec2(77.0, -77.0);
 uniform float base_rad = 26.0;
 uniform float river_w = 5.0;
+uniform bool clouds = true;
 
 uniform vec3 grass_a : source_color = vec3(0.30, 0.55, 0.20);
 uniform vec3 grass_b : source_color = vec3(0.46, 0.68, 0.26);
@@ -86,6 +87,11 @@ void fragment() {
 	col = mix(col, wc, water);
 	rough = mix(rough, 0.08, water);
 
+	// ombre delle nuvole che scorrono lentamente
+	if (clouds) {
+		float cl = texture(noise_tex, wpos * 0.0035 + TIME * vec2(0.004, 0.0025)).r;
+		col *= mix(1.0, 0.8, smoothstep(0.52, 0.72, cl));
+	}
 	ALBEDO = col;
 	ROUGHNESS = rough;
 	SPECULAR = mix(0.3, 0.8, water);

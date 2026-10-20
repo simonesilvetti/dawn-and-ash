@@ -116,9 +116,10 @@ const WAVE_RANGED := 1
 const SIEGE_EVERY := 5                     # Fase 2
 const CREEP_SCALING_EVERY := 300.0         # Fase 2: +10% ogni 5 min
 const CREEP_SCALING := 0.10
-const ENABLE_SIEGE := false                # Fase 2
-const ENABLE_ULTIMATE := false             # Fase 2: abilità R (Meteora)
-const ENABLE_CREEP_SCALING := false        # Fase 2
+const ENABLE_SIEGE := true                 # Fase 2
+const ENABLE_ULTIMATE := true              # Fase 2: abilità R (Meteora)
+const ENABLE_DENY := true                  # Fase 2: negare i propri creep sotto il 50%
+const ENABLE_CREEP_SCALING := true         # Fase 2
 
 # --- Edifici -----------------------------------------------------------------
 const BUILDINGS := {
@@ -148,8 +149,8 @@ const ITEMS := {
 	"vampire": {"name": "Lama del vampiro", "cost": 1200, "damage": 20.0, "lifesteal": 0.15, "desc": "+20 danno, 15% rubavita", "phase2": true},
 }
 const SHOP_ORDER := ["sword", "armor", "boots", "vitality", "potion", "crystal", "ring", "mana_potion", "vampire"]
-const ENABLE_PHASE2_ITEMS := false
-const ENABLE_MUSIC_CROSSFADE := false      # Fase 2: musica di combattimento automatica
+const ENABLE_PHASE2_ITEMS := true
+const ENABLE_MUSIC_CROSSFADE := true       # Fase 2: musica di combattimento automatica
 
 # --- Stato della sessione -----------------------------------------------------
 enum Mode { NONE, TRAINING, HOST, CLIENT }
@@ -199,6 +200,13 @@ func _ready() -> void:
 	_setup_input()
 	load_settings()
 	apply_settings()
+
+
+## Uscita ordinata: ferma l'audio e lascia al thread audio il tempo di rilasciare i flussi.
+func quit(code: int = 0) -> void:
+	Audio.shutdown()
+	await get_tree().create_timer(0.25, true, false, true).timeout
+	get_tree().quit(code)
 
 
 func has_arg(name: String) -> bool:

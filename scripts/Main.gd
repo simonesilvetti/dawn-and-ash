@@ -52,7 +52,7 @@ func show_menu(status: String = "") -> void:
 	menu = MainMenu.new()
 	layer.add_child(menu)
 	menu.start_training.connect(start_training)
-	menu.quit_game.connect(func(): get_tree().quit())
+	menu.quit_game.connect(func(): Game.quit())
 	if status != "":
 		menu.set_status(status)
 
@@ -128,6 +128,21 @@ func _leave_game() -> void:
 	if Game.mode == Game.Mode.HOST or Game.mode == Game.Mode.CLIENT:
 		Net.leave()
 	show_menu()
+
+
+func _exit_tree() -> void:
+	# libera le cache statiche (materiali, mesh, tema): niente risorse "ancora in uso" all'uscita
+	_clear()
+	VfxLib._cache.clear()
+	MapBuilder._mesh_cache.clear()
+	MapBuilder._foliage_mats.clear()
+	MapBuilder._noise = null
+	UnitView._ring_mats.clear()
+	UnitView._tint_cache.clear()
+	UnitView._anim_configured.clear()
+	UnitView._flash_mat = null
+	UnitView._ring_mesh = null
+	UiKit._theme = null
 
 
 # --- Test rapido della simulazione (senza grafica) ---------------------------------------

@@ -150,3 +150,21 @@ func stop_music() -> void:
 	_music_name = ""
 	for m in _music:
 		m.stop()
+
+
+func _exit_tree() -> void:
+	shutdown()
+
+
+## Ferma e rilascia tutto: nessun flusso audio "ancora in uso" all'uscita.
+func shutdown() -> void:
+	_music_name = ""
+	if _fade_tw:
+		_fade_tw.kill()
+	for p in _music + _p2:
+		p.stop()
+		p.stream = null
+	for p in _p3:
+		p.stop()
+		p.stream = null
+	_streams.clear()

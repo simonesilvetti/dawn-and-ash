@@ -112,7 +112,16 @@ func _proj_factory(key: String) -> Callable:
 		sm.radius = r
 		sm.height = r * 2.0
 		mi.mesh = sm
-		mi.material_override = VfxLib.glow_material(c, 3.0)
+		if key.begins_with("siege"):
+			# roccia lanciata dai creep d'assedio
+			var rock := StandardMaterial3D.new()
+			rock.albedo_color = Color(0.5, 0.45, 0.42) if team == 0 else Color(0.35, 0.3, 0.33)
+			rock.roughness = 1.0
+			mi.material_override = rock
+			sm.radial_segments = 6
+			sm.rings = 3
+		else:
+			mi.material_override = VfxLib.glow_material(c, 3.0)
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		root.add_child(mi)
 		if trail:

@@ -6,12 +6,16 @@ extends RefCounted
 const ENV := "res://assets/models/env/"
 
 static var _mesh_cache: Dictionary = {}
+static var _noise: NoiseTexture2D
 static var _foliage_mats: Dictionary = {}
 
 
 static func build(root: Node3D, quality: int) -> void:
 	_build_environment(root, quality)
 	_build_ground(root)
+	if quality < 1:
+		var g: MeshInstance3D = root.get_node("Ground")
+		(g.material_override as ShaderMaterial).set_shader_parameter("clouds", false)
 	_build_foliage(root, quality)
 	_build_props(root)
 
@@ -74,6 +78,21 @@ static func _build_environment(root: Node3D, quality: int) -> void:
 
 # --- Terreno -----------------------------------------------------------------
 
+static func noise_texture() -> NoiseTexture2D:
+	if _noise:
+		return _noise
+	_noise = NoiseTexture2D.new()
+	_noise.width = 512
+	_noise.height = 512
+	_noise.seamless = true
+	_noise.generate_mipmaps = true
+	var fn := FastNoiseLite.new()
+	fn.frequency = 0.012
+	fn.fractal_octaves = 4
+	_noise.noise = fn
+	return _noise
+
+
 static func _build_ground(root: Node3D) -> void:
 	var mi := MeshInstance3D.new()
 	mi.name = "Ground"
@@ -82,16 +101,7 @@ static func _build_ground(root: Node3D) -> void:
 	mi.mesh = pm
 	var mat := ShaderMaterial.new()
 	mat.shader = load("res://scripts/world/ground.gdshader")
-	var nt := NoiseTexture2D.new()
-	nt.width = 512
-	nt.height = 512
-	nt.seamless = true
-	nt.generate_mipmaps = true
-	var fn := FastNoiseLite.new()
-	fn.frequency = 0.012
-	fn.fractal_octaves = 4
-	nt.noise = fn
-	mat.set_shader_parameter("noise_tex", nt)
+	mat.set_shader_parameter("noise_tex", noise_texture())
 	mat.set_shader_parameter("lane_a", Game.LANE_A)
 	mat.set_shader_parameter("lane_b", Game.LANE_B)
 	mat.set_shader_parameter("lane_w", Game.LANE_HALF_WIDTH)
@@ -129,6 +139,8 @@ static func _foliage_material(tint: Color) -> ShaderMaterial:
 	mat.shader = load("res://scripts/world/foliage.gdshader")
 	mat.set_shader_parameter("albedo_tex", load(ENV + "hexagons_medieval.png"))
 	mat.set_shader_parameter("tint", tint)
+	mat.set_shader_parameter("noise_tex", noise_texture())
+	mat.set_shader_parameter("clouds", true)
 	_foliage_mats[key] = mat
 	return mat
 
@@ -258,6 +270,54 @@ static func _place(root: Node3D, file: String, p: Vector2, s: float, rot: float,
 	n.scale = Vector3.ONE * s
 	root.add_child(n)
 	return n
+
+
+## Particelle luminose che fluttuano nell'aria attorno al punto inquadrato (atmosfera).
+static func make_ambient_motes() -> GPUParticles3D:
+	var p := GPUParticles3D.new()
+	p.amount = 70
+	p.lifetime = 6.0
+	p.preprocess = 6.0
+	p.local_coords = false
+	p.visibility_aabb = AABB(Vector3(-40, -5, -40), Vector3(80, 20, 80))
+	var m := ParticleProcessMaterial.new()
+	m.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	m.emission_box_extents = Vector3(30, 3, 22)
+	m.direction = Vector3(0.3, 1, 0.1)
+	m.spread = 60.0
+	m.initial_velocity_min = 0.1
+	m.initial_velocity_max = 0.5
+	m.gravity = Vector3(0.05, 0.02, 0)
+	m.turbulence_enabled = true
+	m.turbulence_noise_strength = 0.6
+	var g := Gradient.new()
+	g.offsets = PackedFloat32Array([0.0, 0.3, 0.7, 1.0])
+	g.colors = PackedColorArray([Color(1, 0.95, 0.6, 0), Color(1, 0.9, 0.5, 0.9), Color(0.9, 1, 0.6, 0.9), Color(1, 1, 0.7, 0)])
+	var gt := GradientTexture1D.new()
+	gt.gradient = g
+	m.color_ramp = gt
+	p.process_material = m
+	var q := QuadMesh.new()
+	q.size = Vector2(0.18, 0.18)
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	mat.vertex_color_use_as_albedo = true
+	var dot := GradientTexture2D.new()
+	var dg := Gradient.new()
+	dg.colors = PackedColorArray([Color(1, 1, 1, 1), Color(1, 1, 1, 0)])
+	dot.gradient = dg
+	dot.fill = GradientTexture2D.FILL_RADIAL
+	dot.fill_from = Vector2(0.5, 0.5)
+	dot.fill_to = Vector2(1.0, 0.5)
+	mat.albedo_texture = dot
+	mat.albedo_color = Color(2.0, 1.8, 1.0)
+	q.material = mat
+	p.draw_pass_1 = q
+	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return p
 
 
 static func _build_props(root: Node3D) -> void:

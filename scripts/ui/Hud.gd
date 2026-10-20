@@ -290,6 +290,33 @@ func _build_notifications() -> void:
 	add_child(_notify_box)
 
 
+## Monete che volano dal punto del last hit al contatore dell'oro.
+func fly_coins(from: Vector2, count: int) -> void:
+	if _gold_label == null:
+		return
+	var to := _gold_label.get_global_rect().position + Vector2(10, 12)
+	for i in count:
+		var c := _Coin.new()
+		c.position = from + Vector2(randf_range(-14, 14), randf_range(-10, 10))
+		c.size = Vector2(14, 14)
+		c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(c)
+		var mid := c.position.lerp(to, 0.5) + Vector2(randf_range(-80, 80), -120)
+		var tw := c.create_tween()
+		tw.tween_interval(i * 0.05)
+		tw.tween_method(func(k: float):
+			var a := c.position.lerp(mid, k)
+			c.position = a.lerp(mid.lerp(to, k), k), 0.0, 1.0, 0.55).set_ease(Tween.EASE_IN)
+		tw.tween_callback(c.queue_free)
+
+
+class _Coin extends Control:
+	func _draw() -> void:
+		draw_circle(size * 0.5, 7, Color(0.55, 0.38, 0.05))
+		draw_circle(size * 0.5, 5.5, Color(1.0, 0.82, 0.25))
+		draw_circle(size * 0.5 - Vector2(1.5, 1.5), 2, Color(1, 0.97, 0.75))
+
+
 func notify(text: String, col: Color = UiKit.TEXT) -> void:
 	if _notify_box == null:
 		return
