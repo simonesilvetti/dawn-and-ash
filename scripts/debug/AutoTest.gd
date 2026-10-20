@@ -1,0 +1,626 @@
+class_name AutoTest
+extends Node
+## Test automatici e strumenti di verifica (argomenti dopo "--"):
+##   --autotest-training            partita di allenamento simulata con verifiche -> AUTOTEST OK/FAIL
+##   --autotest-net-host [--port P] [--duration S] [--expect-disconnect]
+##   --autotest-net-client [--port P] [--duration S] [--netsim latency=..,jitter=..,loss=..]
+##   --shots <cartella>             sequenza di screenshot (menu, partita, abilità, torre, negozio, animazioni, vittoria)
+##   --benchmark [--bench-seconds S] scenario di carico per ogni preset di qualità -> benchmark_results.md
+##   --soak [--soak-minutes M]      partita lunga accelerata: memoria, nodi, creep incastrati, errori
+## Vedi wiki/systems/test-automatici.md.
+
+var main: Node
+var failures: Array[String] = []
+var _t0 := 0
+
+
+static func wants_autotest() -> bool:
+	for a in ["--autotest-training", "--autotest-net-host", "--autotest-net-client", "--shots", "--benchmark", "--soak"]:
+		if Game.has_arg(a):
+			return true
+	return false
+
+
+func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	_t0 = Time.get_ticks_msec()
+	var watchdog := float(Game.arg_value("--watchdog", "900"))
+	get_tree().create_timer(watchdog, true, false, true).timeout.connect(func():
+		print("AUTOTEST FAIL: watchdog scaduto dopo %d s" % int(watchdog))
+		get_tree().quit(2))
+	if Game.has_arg("--autotest-training"):
+		_run_training.call_deferred()
+	elif Game.has_arg("--autotest-net-host"):
+		_run_net_host.call_deferred()
+	elif Game.has_arg("--autotest-net-client"):
+		_run_net_client.call_deferred()
+	elif Game.has_arg("--shots"):
+		_run_shots.call_deferred()
+	elif Game.has_arg("--benchmark"):
+		_run_benchmark.call_deferred()
+	elif Game.has_arg("--soak"):
+		_run_soak.call_deferred()
+
+
+func check(cond: bool, what: String) -> void:
+	if cond:
+		print("  [ok] ", what)
+	else:
+		print("  [FALLITO] ", what)
+		failures.append(what)
+
+
+func _wait(sec: float) -> void:
+	await get_tree().create_timer(sec, true, false, true).timeout
+
+
+## Attende finché il tempo di simulazione raggiunge t (con timeout reale).
+func _wait_sim(w: World, t: float, real_timeout: float = 120.0) -> void:
+	var start := Time.get_ticks_msec()
+	while is_instance_valid(w) and w.game_time < t and (Time.get_ticks_msec() - start) < real_timeout * 1000.0:
+		await get_tree().process_frame
+
+
+func _set_speed(s: float) -> void:
+	Game.base_time_scale = s
+	Engine.time_scale = s
+
+
+func _finish(tag: String) -> void:
+	var secs := (Time.get_ticks_msec() - _t0) / 1000.0
+	if failures.is_empty():
+		print("%s OK (%.1f s)" % [tag, secs])
+		get_tree().quit(0)
+	else:
+		print("%s FAIL: %s" % [tag, "; ".join(failures)])
+		get_tree().quit(1)
+
+
+func _nearest_enemy(w: World, from: Vector2, team: int, max_d: float, creeps_only: bool = true) -> Unit:
+	var best: Unit = null
+	var bd := max_d
+	for u in w.units.values():
+		if u.team == team or not u.alive or u.kind == Game.Kind.FOUNTAIN:
+			continue
+		if creeps_only and not u.is_creep():
+			continue
+		var d: float = u.pos.distance_to(from)
+		if d < bd:
+			bd = d
+			best = u
+	return best
+
+
+# ============================================================================
+# Allenamento
+# ============================================================================
+
+func _run_training() -> void:
+	print("== AUTOTEST allenamento")
+	var w: World = main.start_training()
+	_set_speed(float(Game.arg_value("--timescale", "6")))
+	await get_tree().process_frame
+	var sim := w.sim
+	var hd := w.local_hero_data()
+	var u := w.local_hero_unit()
+	check(sim.unit_list.size() == 9, "8 edifici + eroe creati (%d unità)" % sim.unit_list.size())
+	var d_t2: Unit = sim.units[sim.buildings[1].t2]
+	var d_anc: Unit = sim.units[sim.buildings[1].ancient]
+	check(d_t2.invulnerable and d_anc.invulnerable, "protezione a cascata attiva (T2 e Antico invulnerabili)")
+
+	# Negozio alla fontana
+	w.send_command(["buy", "sword"])
+	await _wait_sim(w, 0.5)
+	check(hd.items.has("sword") and int(hd.gold) <= 205, "acquisto Spada lunga (oro rimasto %d)" % int(hd.gold))
+	check(absf(u.damage - (Game.HERO.damage + 15.0)) < 0.01, "statistiche aggiornate dall'oggetto (danno %.0f)" % u.damage)
+	w.send_command(["learn", 2])   # Onda d'urto
+	await _wait_sim(w, 1.0)
+	check(hd.ability_levels[2] == 1, "abilità E appresa con il punto iniziale")
+
+	# Ondate
+	await _wait_sim(w, Game.FIRST_WAVE + 1.0)
+	var creeps := sim.unit_list.filter(func(x): return x.is_creep()).size()
+	check(creeps == (Game.WAVE_MELEE + Game.WAVE_RANGED) * 2, "prima ondata generata (%d creep)" % creeps)
+
+	# Vai in corsia e combatti
+	w.send_command(["amove", -8.0, 8.0])
+	var cast_done := false
+	var shock_done := false
+	var mana_before := 0.0
+	var deaths_seen := 0
+	var t_end := 140.0
+	while w.game_time < t_end:
+		await get_tree().process_frame
+		if not is_instance_valid(w):
+			break
+		u = w.local_hero_unit()
+		if not u.alive:
+			continue
+		var e := _nearest_enemy(w, u.pos, u.team, 13.0)
+		if e and not cast_done and hd.cooldowns[0] <= 0.0 and u.mana >= 80.0:
+			mana_before = u.mana
+			w.send_command(["cast", 0, e.pos.x, e.pos.y, 0])
+			await _wait_sim(w, w.game_time + 0.6)
+			check(hd.cooldowns[0] > 0.0 and u.mana < mana_before, "Palla di fuoco: mana consumato e ricarica avviata")
+			cast_done = true
+			w.send_command(["amove", -8.0, 8.0])
+		if e and cast_done and not shock_done and u.pos.distance_to(e.pos) < 5.0 and hd.cooldowns[2] <= 0.0:
+			w.send_command(["cast", 2, u.pos.x, u.pos.y, 0])
+			await _wait_sim(w, w.game_time + 0.5)
+			check(hd.cooldowns[2] > 0.0, "Onda d'urto lanciata")
+			shock_done = true
+			w.send_command(["amove", -8.0, 8.0])
+		if hd.ability_points > 0:
+			for slot in [0, 1, 2]:
+				w.send_command(["learn", slot])
+		# last hit: colpisce i creep nemici quasi morti
+		var lh: Unit = null
+		for c in w.units.values():
+			if c.is_creep() and c.alive and c.team != u.team and c.pos.distance_to(u.pos) < 12.0 \
+					and c.hp <= u.damage * Game.armor_multiplier(c.armor) * 1.4:
+				lh = c
+				break
+		if lh and u.target_id != lh.id:
+			w.send_command(["attack", lh.id])
+		elif not u.has_move_goal and u.target_id == 0 and u.state == Unit.State.IDLE:
+			w.send_command(["amove", -2.0 + randf() * 4.0, 2.0 - randf() * 4.0])
+	check(cast_done, "almeno una Palla di fuoco lanciata")
+	check(hd.last_hits > 0, "last hit eseguiti (%d)" % hd.last_hits)
+	check(hd.xp > 0 or hd.level > 1, "esperienza guadagnata (livello %d, xp %d)" % [hd.level, hd.xp])
+	check(hd.level >= 2, "salita di livello")
+	check(hd.gold_total > 150, "oro guadagnato in partita (%d)" % int(hd.gold_total))
+	var damaged_tower := false
+	for t in [0, 1]:
+		var t1: Unit = sim.units[sim.buildings[t].t1]
+		if t1.hp < t1.max_hp:
+			damaged_tower = true
+	check(damaged_tower or sim.wave_number() >= 4, "le torri vengono attaccate / ondate regolari (ondata %d)" % sim.wave_number())
+
+	# Scatto
+	if hd.ability_levels[1] == 0:
+		hd.ability_points += 1
+		w.send_command(["learn", 1])
+		await _wait_sim(w, w.game_time + 0.3)
+	w.send_command(["cheat", "cooldowns"])
+	await _wait_sim(w, w.game_time + 0.2)
+	var before := u.pos
+	w.send_command(["cast", 1, u.pos.x - 8.0, u.pos.y + 8.0, 0])
+	await _wait_sim(w, w.game_time + 0.5)
+	check(u.pos.distance_to(before) > 5.0, "Scatto: teletrasporto di %.1f m" % u.pos.distance_to(before))
+
+	# Morte e rinascita
+	sim._kill(u, null)
+	await _wait_sim(w, w.game_time + 0.2)
+	check(not u.alive and hd.respawn_timer > 0.0, "eroe morto, rinascita tra %.0f s" % hd.respawn_timer)
+	await _wait_sim(w, w.game_time + hd.respawn_timer + 1.0)
+	check(u.alive and u.pos.distance_to(MapData.FOUNTAIN[0]) < 12.0, "eroe rinato alla fontana")
+
+	# Vittoria
+	var result := {}
+	w.finished.connect(func(r): result.merge(r))
+	w.send_command(["cheat", "kill_ancient"])
+	var start := Time.get_ticks_msec()
+	while result.is_empty() and Time.get_ticks_msec() - start < 20000:
+		await get_tree().process_frame
+	check(result.get("victory", false), "vittoria alla distruzione dell'Antico nemico")
+	check(Audio.started_count > 10 and Audio.failed_count == 0, "audio: %d suoni avviati, %d file mancanti" % [Audio.started_count, Audio.failed_count])
+	print("  tick medio sim: %d us, FPS: %d" % [sim.last_tick_usec, Engine.get_frames_per_second()])
+	_finish("AUTOTEST")
+
+
+# ============================================================================
+# Rete
+# ============================================================================
+
+func _run_net_host() -> void:
+	var port := int(Game.arg_value("--port", "7790"))
+	var duration := float(Game.arg_value("--duration", "40"))
+	print("== NETTEST host sulla porta %d" % port)
+	Game.player_name = "Host"
+	check(Net.host(port) == OK, "server avviato")
+	Net.stats_enabled = true
+	Net.lobby_changed.connect(func():
+		if Net.lobby.size() == 2 and not Net.lobby[1].ready:
+			Net.set_ready(true))
+	var start := Time.get_ticks_msec()
+	while (main.world == null or main.world._remote_peers.is_empty()) and Time.get_ticks_msec() - start < 30000:
+		await get_tree().process_frame
+	var w: World = main.world
+	check(w != null and not w._remote_peers.is_empty(), "client entrato in partita")
+	if w == null:
+		_finish("NETTEST")
+		return
+	var peer: int = w._remote_peers[0] if not w._remote_peers.is_empty() else 0
+	var expect_disc := Game.has_arg("--expect-disconnect")
+	var t_end := Time.get_ticks_msec() + int(duration * 1000.0)
+	var fps_sum := 0.0
+	var fps_n := 0
+	while Time.get_ticks_msec() < t_end:
+		await get_tree().process_frame
+		fps_sum += Engine.get_frames_per_second()
+		fps_n += 1
+		if expect_disc and w.over:
+			break
+	if expect_disc:
+		check(w.over and w.forfeit and w.winner == 0, "disconnessione del client gestita: vittoria a tavolino")
+		# ritorno al menu e nuova partita senza riavviare
+		main._leave_game()
+		await _wait(1.0)
+		var w2: World = main.start_training()
+		await _wait(3.0)
+		check(is_instance_valid(w2) and w2.sim.time > 1.0, "nuova partita di allenamento dopo la disconnessione")
+		_finish("ROBUST")
+		return
+	var cu: Unit = w.sim.hero_unit(peer)
+	var moved := cu.pos.distance_to(MapData.FOUNTAIN[1]) if cu else 0.0
+	check(moved > 20.0, "l'eroe del client si muove sul server (%.0f m dalla fontana)" % moved)
+	check(w.sim.unit_list.size() >= 10, "simulazione attiva (%d unità)" % w.sim.unit_list.size())
+	var secs := duration
+	print("  NET host: banda in uscita snapshot %.1f KB/s, unità %d, FPS medio %.0f" % [Net.bytes_out / 1024.0 / secs, w.sim.unit_list.size(), fps_sum / maxf(1, fps_n)])
+	await _wait(2.0)
+	_finish("NETTEST")
+
+
+func _run_net_client() -> void:
+	var port := int(Game.arg_value("--port", "7790"))
+	var duration := float(Game.arg_value("--duration", "40"))
+	print("== NETTEST client (netsim %s)" % str(Net.netsim))
+	Game.player_name = "Client"
+	Net.stats_enabled = true
+	Net.connected.connect(func(): Net.set_ready(true))
+	var ok := false
+	for attempt in 20:
+		if Net.join("127.0.0.1", port) == OK:
+			var s := Time.get_ticks_msec()
+			while Time.get_ticks_msec() - s < 1500 and multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTING:
+				await get_tree().process_frame
+			if multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED:
+				ok = true
+				break
+		await _wait(0.5)
+	check(ok, "connesso all'host")
+	var start := Time.get_ticks_msec()
+	while main.world == null and Time.get_ticks_msec() - start < 20000:
+		await get_tree().process_frame
+	var w: World = main.world
+	check(w != null, "partita avviata sul client")
+	if w == null:
+		_finish("NETTEST")
+		return
+	# attende il conto alla rovescia e lo stato iniziale
+	start = Time.get_ticks_msec()
+	while (w.local_hero_unit() == null or w.countdown > 0.0) and Time.get_ticks_msec() - start < 15000:
+		await get_tree().process_frame
+	await _wait(3.5)
+	var u := w.local_hero_unit()
+	check(u != null, "eroe locale ricevuto dal server")
+	if Game.has_arg("--die-after"):
+		await _wait(float(Game.arg_value("--die-after", "5")))
+		print("  client: chiusura brusca simulata")
+		OS.kill(OS.get_process_id())
+	w.recon_err_sum = 0.0
+	w.recon_err_n = 0
+	w.recon_err_max = 0.0
+	w._max_jump_seen = 0.0
+	Net.bytes_in = 0
+	var t0 := Time.get_ticks_msec()
+	var t_end := t0 + int(duration * 1000.0)
+	var next_cmd := 0
+	var spawn := u.pos if u else Vector2.ZERO
+	var path := [Vector2(60, -60), Vector2(45, -45), Vector2(30, -30), Vector2(20, -20), Vector2(35, -35)]
+	var step := 0
+	var frame_jump_max := 0.0
+	var watch_id := 0
+	var watch_prev := Vector3.INF
+	while Time.get_ticks_msec() < t_end:
+		await get_tree().process_frame
+		var now := Time.get_ticks_msec()
+		if now >= next_cmd:
+			next_cmd = now + 2500
+			u = w.local_hero_unit()
+			if u and u.alive:
+				var e := _nearest_enemy(w, u.pos, u.team, 10.0)
+				if e and step >= 3 and randf() < 0.5:
+					w.send_command(["attack", e.id])
+				else:
+					var p: Vector2 = path[step % path.size()]
+					w.send_command(["move", p.x, p.y])
+					step += 1
+		# salto visivo massimo per frame di un creep osservato (niente "teletrasporti")
+		if watch_id == 0 or not w.views.has(watch_id):
+			for id in w.views:
+				var uu: Unit = w.units.get(id)
+				if uu and uu.is_creep() and uu.alive:
+					watch_id = id
+					watch_prev = Vector3.INF
+					break
+		elif w.views.has(watch_id):
+			var vp: Vector3 = (w.views[watch_id] as UnitView).vis_pos
+			if watch_prev != Vector3.INF and (w.units[watch_id] as Unit).alive:
+				frame_jump_max = maxf(frame_jump_max, vp.distance_to(watch_prev))
+			watch_prev = vp
+	var secs := duration
+	u = w.local_hero_unit()
+	var avg_err := w.recon_err_sum / maxf(1, w.recon_err_n)
+	var kbs := Net.bytes_in / 1024.0 / secs
+	print("  NET client: errore riconciliazione medio %.3f m (max %.2f), banda in ingresso %.1f KB/s, snapshot %d (scartati %d), salto max creep/frame %.2f m, ping %.0f ms" % [avg_err, w.recon_err_max, kbs, Net.snapshots_in, Net.snapshots_dropped, frame_jump_max, Net.rtt * 1000.0])
+	check(w.units.size() >= 10, "unità sincronizzate (%d)" % w.units.size())
+	check(u != null and u.pos.distance_to(spawn) > 15.0, "il proprio eroe si è mosso (autorità server)")
+	check(kbs < 30.0, "banda < 30 KB/s (%.1f)" % kbs)
+	var lat: float = Net.netsim.latency
+	if lat <= 150.0:
+		check(avg_err < 0.3, "errore medio di riconciliazione < 0.3 m (%.3f)" % avg_err)
+	check(frame_jump_max < 1.5, "nessun teletrasporto visivo dei creep (salto max %.2f m)" % frame_jump_max)
+	Net.leave()
+	_finish("NETTEST")
+
+
+# ============================================================================
+# Screenshot
+# ============================================================================
+
+func _shot(dir: String, name: String) -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var img := get_viewport().get_texture().get_image()
+	var path := dir.path_join(name + ".png")
+	img.save_png(path)
+	print("  screenshot: ", path)
+
+
+func _focus(w: World, p: Vector2, zoom: float = 30.0) -> void:
+	w.cam.locked = false
+	w.cam.center_on(MapData.to3(p), true)
+	w.cam.target_zoom = zoom
+	w.cam.zoom = zoom
+
+
+func _run_shots() -> void:
+	var dir := Game.arg_value("--shots", "res://screenshots")
+	DirAccess.make_dir_recursive_absolute(dir if dir.is_absolute_path() else ProjectSettings.globalize_path(dir))
+	print("== Screenshot in ", dir)
+	await _wait(4.0)
+	await _shot(dir, "01_menu")
+	var w: World = main.start_training()
+	await _wait(2.5)
+	_focus(w, MapData.FOUNTAIN[0] + MapData.team_dir(0) * 8.0, 26.0)
+	await _wait(0.8)
+	await _shot(dir, "02_inizio")
+	# accelera fino allo scontro tra creep
+	w.send_command(["learn", 2])
+	w.send_command(["amove", -14.0, 14.0])
+	_set_speed(5.0)
+	await _wait_sim(w, 27.0)
+	_set_speed(1.0)
+	var mid := Vector2.ZERO
+	var n := 0
+	for u in w.sim.unit_list:
+		if u.is_creep() and u.alive:
+			mid += u.pos
+			n += 1
+	if n > 0:
+		mid /= n
+	_focus(w, mid, 24.0)
+	await _wait(1.2)
+	await _shot(dir, "03_scontro_creep")
+	var hu := w.local_hero_unit()
+	var e := _nearest_enemy(w, hu.pos, 0, 20.0)
+	if e:
+		_focus(w, hu.pos.lerp(e.pos, 0.5), 22.0)
+		w.send_command(["cast", 0, e.pos.x, e.pos.y, 0])
+		await _wait(0.42)
+		await _shot(dir, "04_palla_di_fuoco")
+		await _wait(0.4)
+		await _shot(dir, "04b_esplosione")
+	w.send_command(["cheat", "cooldowns"])
+	await _wait(0.3)
+	w.send_command(["cast", 2, hu.pos.x, hu.pos.y, 0])
+	await _wait(0.45)
+	_focus(w, hu.pos, 22.0)
+	await _shot(dir, "05_onda_d_urto")
+	# animazioni: camminata e attacco, sequenze di fotogrammi ravvicinati
+	w.send_command(["move", hu.pos.x - 10.0, hu.pos.y + 10.0])
+	await _wait(0.3)
+	for i in 6:
+		_focus(w, hu.pos, 20.0)
+		await _shot(dir, "anim_camminata_%d" % i)
+		await _wait(0.1)
+	e = _nearest_enemy(w, hu.pos, 0, 25.0)
+	if e:
+		w.send_command(["attack", e.id])
+		var s := Time.get_ticks_msec()
+		while hu.state != Unit.State.ATTACKING and Time.get_ticks_msec() - s < 5000:
+			await get_tree().process_frame
+		for i in 6:
+			_focus(w, hu.pos, 20.0)
+			await _shot(dir, "anim_attacco_%d" % i)
+			await _wait(0.1)
+	# torre che spara: porta l'eroe (invulnerabile) sotto la T1 nemica
+	w.send_command(["cheat", "invulnerable"])
+	var dt1: Vector2 = MapData.T1[1]
+	w.send_command(["move", dt1.x - 5.0, dt1.y + 5.0])
+	_set_speed(4.0)
+	var s2 := Time.get_ticks_msec()
+	while hu.pos.distance_to(dt1) > 8.0 and Time.get_ticks_msec() - s2 < 20000:
+		await get_tree().process_frame
+	_set_speed(1.0)
+	_focus(w, dt1.lerp(hu.pos, 0.4), 26.0)
+	await _wait(1.3)
+	await _shot(dir, "06_torre")
+	# negozio
+	w.hud.toggle_shop()
+	await _wait(0.5)
+	await _shot(dir, "07_negozio")
+	w.hud.toggle_shop()
+	# vista d'insieme dello schieramento della base nemica
+	_focus(w, MapData.ANCIENT[1] + Vector2(-8, 8), 40.0)
+	await _wait(1.0)
+	await _shot(dir, "08_base_nemica")
+	# vittoria
+	var done := {}
+	w.finished.connect(func(r): done.merge(r))
+	w.send_command(["cheat", "kill_ancient"])
+	_focus(w, MapData.ANCIENT[1], 34.0)
+	await _wait(0.6)
+	await _shot(dir, "09_antico_distrutto")
+	var s3 := Time.get_ticks_msec()
+	while done.is_empty() and Time.get_ticks_msec() - s3 < 10000:
+		await get_tree().process_frame
+	await _wait(1.0)
+	await _shot(dir, "10_vittoria")
+	_finish("SHOTS")
+
+
+# ============================================================================
+# Benchmark
+# ============================================================================
+
+func _run_benchmark() -> void:
+	var secs := float(Game.arg_value("--bench-seconds", "30"))
+	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+	Engine.max_fps = 0
+	var results: Array = []
+	var presets := [0, 1, 2]
+	if Game.has_arg("--bench-preset"):
+		presets = [int(Game.arg_value("--bench-preset", "1"))]
+	for q in presets:
+		Game.settings.quality = q
+		var w: World = main.start_training()
+		await _wait(1.0)
+		# scenario di carico fisso: 5 ondate per lato tutte insieme al centro
+		for i in 5:
+			w.sim._spawn_wave()
+		for u in w.sim.unit_list:
+			if u.is_creep():
+				u.pos = MapData.closest_on_lane(u.pos).lerp(Vector2.ZERO, 0.8) + MapData.lane_normal() * u.lane_offset * 2.0
+				u.prev_pos = u.pos
+		w.send_command(["cheat", "invulnerable"])
+		w.sim.heroes[1].ability_levels = [4, 4, 4, 0]
+		var hu := w.local_hero_unit()
+		hu.pos = Vector2(-6, 6)
+		hu.prev_pos = hu.pos
+		_focus(w, Vector2.ZERO, 32.0)
+		await _wait(2.0)
+		var frames: Array[float] = []
+		var ticks: Array[int] = []
+		var calls := 0
+		var calls_n := 0
+		var last := Time.get_ticks_usec()
+		var end := Time.get_ticks_msec() + int(secs * 1000.0)
+		var next_cast := 0
+		var mem0 := Performance.get_monitor(Performance.MEMORY_STATIC)
+		while Time.get_ticks_msec() < end:
+			await get_tree().process_frame
+			var now := Time.get_ticks_usec()
+			frames.append((now - last) / 1000.0)
+			last = now
+			ticks.append(w.sim.last_tick_usec)
+			calls += int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))
+			calls_n += 1
+			_focus(w, Vector2.ZERO, 32.0)
+			if Time.get_ticks_msec() > next_cast:
+				next_cast = Time.get_ticks_msec() + 700
+				w.send_command(["cheat", "cooldowns"])
+				var e := _nearest_enemy(w, hu.pos, 0, 14.0)
+				var target := e.pos if e else Vector2(5, -5)
+				w.send_command(["cast", [0, 2][randi() % 2], target.x, target.y, 0])
+				# mantiene lo scontro vivo: nuove ondate se i creep calano
+				if w.sim.unit_list.filter(func(x): return x.is_creep() and x.alive).size() < 40:
+					w.sim._spawn_wave()
+		var sorted := frames.duplicate()
+		sorted.sort()
+		var avg_ms := 0.0
+		for f in frames:
+			avg_ms += f
+		avg_ms /= frames.size()
+		var worst := sorted.slice(int(sorted.size() * 0.99))
+		var low_ms := 0.0
+		for f in worst:
+			low_ms += f
+		low_ms /= maxf(1, worst.size())
+		var tick_avg := 0.0
+		for t in ticks:
+			tick_avg += t
+		tick_avg /= maxf(1, ticks.size())
+		var units := w.sim.unit_list.size()
+		var r := {"q": ["Bassa", "Media", "Alta"][q], "fps": 1000.0 / avg_ms, "low": 1000.0 / low_ms, "max_ms": sorted.back(),
+			"tick_us": tick_avg, "calls": calls / maxf(1, calls_n), "units": units,
+			"mem_mb": Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0, "mem_delta": (Performance.get_monitor(Performance.MEMORY_STATIC) - mem0) / 1048576.0}
+		results.append(r)
+		print("  BENCH %s: FPS medio %.0f, 1%% low %.0f, frame max %.1f ms, tick sim %.0f us, draw call %.0f, unità %d" % [r.q, r.fps, r.low, r.max_ms, r.tick_us, r.calls, units])
+	_write_benchmark(results, secs)
+	_finish("BENCHMARK")
+
+
+func _write_benchmark(results: Array, secs: float) -> void:
+	var path := ProjectSettings.globalize_path("res://benchmark_results.md")
+	var old := FileAccess.get_file_as_string(path) if FileAccess.file_exists(path) else "# Risultati dei benchmark\n\nScenario: 5 ondate per lato contemporaneamente al centro della mappa + abilità lanciate a ripetizione, telecamera sullo scontro, VSync disattivato.\nLimiti (preset Media): FPS medio ≥ 60, 1% low ≥ 45, tick di simulazione < 4 ms, draw call < 1000.\n"
+	var gpu := RenderingServer.get_video_adapter_name()
+	var label := Game.arg_value("--bench-label", "")
+	var s := "\n## %s %s\n\nGPU: %s · risoluzione %s · durata %d s per preset\n\n| Preset | FPS medio | 1%% low | Frame max (ms) | Tick sim (µs) | Draw call | Unità | Memoria (MB) |\n|---|---|---|---|---|---|---|---|\n" % [Time.get_datetime_string_from_system(), label, gpu, str(get_viewport().get_visible_rect().size), int(secs)]
+	for r in results:
+		s += "| %s | %.0f | %.0f | %.1f | %.0f | %.0f | %d | %.0f |\n" % [r.q, r.fps, r.low, r.max_ms, r.tick_us, r.calls, r.units, r.mem_mb]
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	f.store_string(old + s)
+	f.close()
+
+
+# ============================================================================
+# Soak test
+# ============================================================================
+
+func _run_soak() -> void:
+	var minutes := float(Game.arg_value("--soak-minutes", "30"))
+	print("== SOAK allenamento per %d minuti di gioco" % int(minutes))
+	var w: World = main.start_training()
+	_set_speed(float(Game.arg_value("--timescale", "10")))
+	await get_tree().process_frame
+	var nodes5 := 0.0
+	var mem5 := 0.0
+	var stuck_max := 0.0
+	var last_pos: Dictionary = {}
+	var last_moved: Dictionary = {}
+	var next_check := 10.0
+	var next_cmd := 5.0
+	var fps_min := 9999.0
+	var tick_max := 0
+	while w.game_time < minutes * 60.0:
+		await get_tree().process_frame
+		if not is_instance_valid(w) or w.over:
+			break
+		tick_max = maxi(tick_max, w.sim.last_tick_usec)
+		var hu := w.local_hero_unit()
+		if w.game_time >= next_cmd:
+			next_cmd = w.game_time + 6.0
+			if hu.alive:
+				# l'eroe farma vicino alla propria T1 e ogni tanto lancia abilità
+				w.send_command(["amove", -24.0 + randf() * 6.0, 24.0 - randf() * 6.0])
+				var e := _nearest_enemy(w, hu.pos, 0, 12.0)
+				if e and randf() < 0.5:
+					w.send_command(["cast", 0, e.pos.x, e.pos.y, 0])
+				for slot in [0, 1, 2]:
+					w.send_command(["learn", slot])
+		if w.game_time >= next_check:
+			next_check += 10.0
+			for u in w.sim.unit_list:
+				if not u.is_creep() or not u.alive:
+					continue
+				var lp: Vector2 = last_pos.get(u.id, Vector2.INF)
+				if lp == Vector2.INF or lp.distance_to(u.pos) > 0.5 or u.target_id != 0:
+					last_pos[u.id] = u.pos
+					last_moved[u.id] = w.game_time
+				else:
+					stuck_max = maxf(stuck_max, w.game_time - float(last_moved.get(u.id, w.game_time)))
+			if absf(w.game_time - 300.0) < 10.0 and nodes5 == 0.0:
+				nodes5 = Performance.get_monitor(Performance.OBJECT_NODE_COUNT)
+				mem5 = Performance.get_monitor(Performance.MEMORY_STATIC)
+			print("  t=%4.0fs unità=%d nodi=%d mem=%.1f MB tick_max=%d us" % [w.game_time, w.sim.unit_list.size(), Performance.get_monitor(Performance.OBJECT_NODE_COUNT), Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0, tick_max])
+	var nodes_end := Performance.get_monitor(Performance.OBJECT_NODE_COUNT)
+	var mem_end := Performance.get_monitor(Performance.MEMORY_STATIC)
+	if nodes5 > 0.0:
+		check(nodes_end <= nodes5 * 1.05 + 50, "numero di nodi stabile (%d -> %d)" % [nodes5, nodes_end])
+		check(mem_end <= mem5 * 1.05 + 4.0 * 1048576.0, "memoria stabile (%.1f -> %.1f MB)" % [mem5 / 1048576.0, mem_end / 1048576.0])
+	check(stuck_max < 10.0, "nessun creep incastrato più di 10 s (max %.0f s)" % stuck_max)
+	check(w.sim.unit_list.size() <= Game.MAX_UNITS, "limite di unità rispettato (%d)" % w.sim.unit_list.size())
+	check(tick_max < 8000, "tick di simulazione massimo < 8 ms (%d us)" % tick_max)
+	_finish("SOAK")

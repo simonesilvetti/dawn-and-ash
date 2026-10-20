@@ -1,0 +1,10 @@
+# Godot
+.godot/
+*.translation
+export_credentials.cfg
+# Build / tool output
+build/
+screenshots/*.png
+!screenshots/README.md
+benchmark_raw/
+*.tmp
