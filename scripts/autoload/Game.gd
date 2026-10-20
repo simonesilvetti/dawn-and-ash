@@ -183,6 +183,16 @@ signal settings_changed
 
 var user_args: PackedStringArray = PackedStringArray()
 
+# Profilazione leggera (solo benchmark): nome -> [usec totali, chiamate]
+var prof_enabled := false
+var prof: Dictionary = {}
+
+func prof_add(name: String, usec: int) -> void:
+	var e: Array = prof.get(name, [0, 0])
+	e[0] += usec
+	e[1] += 1
+	prof[name] = e
+
 
 func _ready() -> void:
 	user_args = OS.get_cmdline_user_args()

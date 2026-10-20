@@ -53,6 +53,13 @@ var _pred_goal := Vector2.ZERO
 var _pred_has_goal := false
 var _pred_target: int = 0
 var _pred_hist: Array = []              # [[local_time, pos]]
+var _srv_sample: Array = []             # ultimo stato server del proprio eroe: [local_time_arrivo, pos]
+var _correction := Vector2.ZERO         # correzione residua da applicare gradualmente
+var _last_cmd_time: float = -100.0
+var _cmd_times: Dictionary = {}         # seq -> istante locale di invio
+var _srv_local_time: float = -1.0
+var _latest_snap_t: float = -1.0
+var _prev_snap_t: float = -1.0
 var _local_time: float = 0.0
 var recon_err_sum: float = 0.0
 var recon_err_n: int = 0
@@ -71,6 +78,8 @@ var _music_state := "calm"
 var _last_combat_time: float = -100.0
 
 const AI_TEAM_COLOR := 0
+## Allineamento temporale della riconciliazione, in tick (determinato con i test di rete).
+static var RECON_TICK_OFFSET: float = 0.0
 
 
 func setup(m: int, peer: int) -> void:
@@ -83,6 +92,7 @@ func setup(m: int, peer: int) -> void:
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_PAUSABLE
+	_apply_quality(get_viewport())
 	map_root = Node3D.new()
 	map_root.name = "Map"
 	add_child(map_root)
@@ -109,6 +119,7 @@ func _ready() -> void:
 	hud.world = self
 	ui.add_child(hud)
 	vfx.warmup()
+	_prewarm_views()
 
 	if is_server:
 		sim = Sim.new(mode == Game.Mode.TRAINING)
@@ -124,6 +135,13 @@ func _ready() -> void:
 	Audio.play_music("calm")
 	if mode == Game.Mode.TRAINING:
 		hud.notify("Distruggi l'Antico del Culto della Cenere!", Color(1, 0.85, 0.4))
+
+
+## Antialiasing e risoluzione 3D per preset (Bassa / Media / Alta).
+func _apply_quality(vp: Viewport) -> void:
+	vp.msaa_3d = [Viewport.MSAA_DISABLED, Viewport.MSAA_DISABLED, Viewport.MSAA_2X][quality]
+	vp.screen_space_aa = [Viewport.SCREEN_SPACE_AA_DISABLED, Viewport.SCREEN_SPACE_AA_FXAA, Viewport.SCREEN_SPACE_AA_DISABLED][quality]
+	vp.scaling_3d_scale = [0.75, 1.0, 1.0][quality]
 
 
 func _build_target_rings() -> void:
@@ -189,11 +207,17 @@ func hero_of_unit(id: int) -> HeroData:
 
 func _process(delta: float) -> void:
 	_local_time += delta
+	var t0 := Time.get_ticks_usec()
 	if is_server:
 		_server_process(delta)
 	else:
 		_client_process(delta)
+	var t1 := Time.get_ticks_usec()
 	_update_views(delta)
+	var t2 := Time.get_ticks_usec()
+	if Game.prof_enabled:
+		Game.prof_add("sim+eventi", t1 - t0)
+		Game.prof_add("viste", t2 - t1)
 	_update_hover()
 	_update_targeting_rings()
 	_update_music()
@@ -220,7 +244,7 @@ func _server_process(delta: float) -> void:
 		_flush_events()
 		if not _remote_peers.is_empty():
 			var full := sim.tick_n % Game.SNAPSHOT_FULL_EVERY == 0
-			Net.send_snapshot(_remote_peers, sim.build_snapshot(full))
+			_send_snapshots(sim.build_snapshot(full))
 	if n == 5:
 		_acc = 0.0   # evita la "spirale della morte" se il frame è lentissimo
 	game_time = sim.time
@@ -233,6 +257,18 @@ func _server_process(delta: float) -> void:
 			team_kills[hd.team] += hd.kills
 		if not _remote_peers.is_empty():
 			Net.send_state(_remote_peers, _state_dict())
+
+
+## Snapshot per ogni client, con intestazione personale: ultimo comando eseguito e relativo tick
+## (permette al client di allineare esattamente la riconciliazione, anche con jitter).
+func _send_snapshots(body: PackedByteArray) -> void:
+	for peer in _remote_peers:
+		var head := StreamPeerBuffer.new()
+		head.put_u32(sim.last_seq.get(peer, 0))
+		head.put_u32(sim.last_seq_tick.get(peer, 0))
+		var data := head.data_array
+		data.append_array(body)
+		Net.send_snapshot(peer, data)
 
 
 func _state_dict() -> Dictionary:
@@ -284,7 +320,7 @@ func add_remote_player(peer: int, pname: String) -> void:
 	Net.send_events([peer], sim.tick_n, initial)
 	_remote_peers.append(peer)
 	_flush_events()
-	Net.send_snapshot(_remote_peers, sim.build_snapshot(true))
+	_send_snapshots(sim.build_snapshot(true))
 	Net.send_state(_remote_peers, _state_dict())
 	countdown = 3.0
 	Net.send_countdown(_remote_peers, 3.0)
@@ -299,9 +335,9 @@ func remote_player_left(peer: int) -> void:
 		_end_game(Game.local_team)
 
 
-func receive_command(peer: int, cmd: Array) -> void:
+func receive_command(peer: int, seq: int, cmd: Array) -> void:
 	if is_server and running and _remote_peers.has(peer):
-		sim.queue_command(peer, cmd)
+		sim.queue_command(peer, cmd, seq)
 
 
 # ============================================================================
@@ -339,11 +375,23 @@ func client_set_countdown(c: float) -> void:
 func client_receive_snapshot(data: PackedByteArray) -> void:
 	var buf := StreamPeerBuffer.new()
 	buf.data_array = data
-	if data.size() < 6:
+	if data.size() < 14:
 		return
+	var ack_seq := buf.get_u32()
+	var ack_tick := buf.get_u32()
 	var tick := buf.get_u32()
 	var count := buf.get_u16()
 	var t := tick * Game.TICK
+	if t <= _prev_snap_t:
+		return   # snapshot vecchio o duplicato
+	var prev_snap := _latest_snap_t
+	_latest_snap_t = t
+	_prev_snap_t = t
+	# istante locale corrispondente allo stato del proprio eroe in questo snapshot
+	if _cmd_times.has(ack_seq):
+		_srv_local_time = float(_cmd_times[ack_seq]) + (tick - ack_tick + 1) * Game.TICK
+	else:
+		_srv_local_time = -1.0
 	if not _clock_init:
 		_clock = t
 		_clock_init = true
@@ -381,6 +429,9 @@ func client_receive_snapshot(data: PackedByteArray) -> void:
 			var b: Array = _buffers.get(id, [])
 			if not b.is_empty() and b.back()[0] >= t:
 				continue
+			# non inviata negli snapshot precedenti = era ferma: aggiungi un campione di "sosta"
+			if not b.is_empty() and b.back()[0] < prev_snap - 0.001:
+				b.append([prev_snap, b.back()[1], b.back()[2]])
 			if not b.is_empty():
 				var jump: float = (b.back()[1] as Vector2).distance_to(p)
 				_max_jump_seen = maxf(_max_jump_seen, jump)
@@ -390,6 +441,8 @@ func client_receive_snapshot(data: PackedByteArray) -> void:
 			_buffers[id] = b
 			u.pos = p
 			u.facing = f
+			if u.owner_peer == local_peer and u.is_hero():
+				_srv_sample = [_srv_local_time if _srv_local_time >= 0.0 else _local_time - Net.rtt, p]
 		if hp >= 0.0:
 			u.hp = hp
 		if mana >= 0.0: u.mana = mana
@@ -416,8 +469,11 @@ func _interp_pos(id: int, render_t: float) -> Array:
 			if (a[1] as Vector2).distance_to(c[1]) > 4.0:
 				return [c[1] if k > 0.5 else a[1], c[2]]   # teletrasporto: niente interpolazione
 			return [(a[1] as Vector2).lerp(c[1], k), lerp_angle(a[2], c[2], k)]
-	# oltre l'ultimo campione: estrapolazione breve (max 200 ms)
+	# oltre l'ultimo campione: se snapshot più recenti non la contengono, l'unità è ferma
 	var last: Array = b.back()
+	if last[0] < _latest_snap_t - 0.001:
+		return [last[1], last[2]]
+	# altrimenti (pacchetti in ritardo) estrapolazione breve (max 200 ms)
 	if b.size() >= 2:
 		var prev: Array = b[b.size() - 2]
 		var dt: float = last[0] - prev[0]
@@ -457,6 +513,11 @@ func _update_prediction(delta: float) -> void:
 		_pred_hist.clear()
 		if blocked:
 			return
+	# negli stati stabili (attacco in corso, fermo) senza comandi recenti si segue il server
+	if _local_time - _last_cmd_time > Net.rtt + 0.15:
+		if (u.flags & Unit.F_ATTACKING) != 0 or (u.flags & Unit.F_MOVING) == 0:
+			_pred_has_goal = false
+			_pred_target = 0
 	# movimento predetto (stesse regole del server)
 	var goal := Vector2.INF
 	if _pred_target != 0:
@@ -479,26 +540,39 @@ func _update_prediction(delta: float) -> void:
 		else:
 			_pred_pos += to.normalized() * step
 		_pred_pos = MapData.clamp_walkable(_client_push_buildings(_pred_pos, u.radius, to.normalized()), u.radius)
-	# riconciliazione: confronta lo stato server con la predizione di ~1 RTT fa
+	# Riconciliazione: ogni nuovo stato del server viene confrontato con la predizione di allora.
+	# Lo stato del tick T riflette i comandi arrivati ~RTT/2 dopo l'invio e giunge qui ~RTT/2 dopo:
+	# corrisponde quindi alla predizione di (arrivo - RTT - mezzo tick).
 	_pred_hist.append([_local_time, _pred_pos])
-	while _pred_hist.size() > 90:
+	while _pred_hist.size() > 120:
 		_pred_hist.pop_front()
-	var rtt: float = Net.rtt + Game.INTERP_DELAY * 0.0
-	var past := _pred_pos
-	for h in _pred_hist:
-		if h[0] >= _local_time - rtt:
-			past = h[1]
-			break
-	var err: Vector2 = (server_now[0] as Vector2) - past
-	var el := err.length()
-	recon_err_sum += el
-	recon_err_n += 1
-	recon_err_max = maxf(recon_err_max, el)
-	if el > 3.0:
-		_pred_pos += err
-		_pred_hist.clear()
-	elif el > 0.05:
-		_pred_pos += err * minf(1.0, delta * (6.0 if el > 0.5 else 3.0))
+	if not _srv_sample.is_empty():
+		var at: float = _srv_sample[0] + Game.TICK * RECON_TICK_OFFSET
+		var past := _pred_pos
+		for h in _pred_hist:
+			if h[0] >= at:
+				past = h[1]
+				break
+		var err: Vector2 = (_srv_sample[1] as Vector2) - past
+		_srv_sample = []
+		var el := err.length()
+		recon_err_sum += el
+		recon_err_n += 1
+		recon_err_max = maxf(recon_err_max, el)
+		if el > 3.0:
+			# errore grande (es. respinto, rallentato): riallineamento immediato
+			_pred_pos += err
+			_correction = Vector2.ZERO
+			_pred_hist.clear()
+		elif el > 0.02:
+			_correction = err
+	if _correction.length() > 0.001:
+		# correzione morbida in ~150 ms, applicata anche alla cronologia
+		var stepc := _correction * minf(1.0, delta * 7.0)
+		_pred_pos += stepc
+		_correction -= stepc
+		for h in _pred_hist:
+			h[1] = (h[1] as Vector2) + stepc
 
 
 func _client_push_buildings(p: Vector2, r: float, dir: Vector2) -> Vector2:
@@ -526,9 +600,17 @@ func _apply_events(evs: Array) -> void:
 		if not (e is Array) or e.is_empty():
 			continue
 		match e[0]:
-			"spawn": _ev_spawn(e)
+			"spawn":
+				var ts := Time.get_ticks_usec()
+				_ev_spawn(e)
+				if Game.prof_enabled:
+					Game.prof_add("ev_spawn", Time.get_ticks_usec() - ts)
 			"despawn": _ev_despawn(int(e[1]))
-			"death": _ev_death(int(e[1]), int(e[2]))
+			"death":
+				var td := Time.get_ticks_usec()
+				_ev_death(int(e[1]), int(e[2]))
+				if Game.prof_enabled:
+					Game.prof_add("ev_death", Time.get_ticks_usec() - td)
 			"respawn": _ev_respawn(int(e[1]), Vector2(e[2], e[3]))
 			"attack": _ev_attack(int(e[1]), int(e[2]))
 			"cast": _ev_cast(int(e[1]), int(e[2]))
@@ -570,7 +652,7 @@ func _ev_spawn(e: Array) -> void:
 			u.attack_point = Game.HERO.attack_point
 			u.move_speed = Game.HERO.move_speed
 		units[id] = u
-		_buffers[id] = [[_clock, u.pos, u.facing]]
+		_buffers[id] = [[_clock - Game.INTERP_DELAY, u.pos, u.facing]]
 	if views.has(id):
 		return
 	var v := _get_view(u)
@@ -605,16 +687,34 @@ func _get_view(u: Unit) -> UnitView:
 	return v
 
 
+## Pre-crea i modelli dei creep (istanziare un glTF animato durante la partita causa scatti).
+func _prewarm_views() -> void:
+	var per_type := 14
+	for k in [Game.Kind.CREEP_MELEE, Game.Kind.CREEP_RANGED]:
+		for t in [0, 1]:
+			var key := UnitView.make_key(k, t)
+			var pool: Array = _view_pool.get(key, [])
+			for i in per_type:
+				var v := UnitView.new()
+				units_root.add_child(v)
+				v.setup(0, k, t, "", quality)
+				v.position = Vector3(0, -50, 0)
+				v.park()
+				pool.append(v)
+			_view_pool[key] = pool
+
+
 func _ev_despawn(id: int) -> void:
 	var v: UnitView = views.get(id)
 	views.erase(id)
+	overlay._trail.erase(id)
 	if not is_server:
 		units.erase(id)
 		_buffers.erase(id)
 	if v == null:
 		return
 	if v.model_key != "building" and v.model_key != "hero":
-		v.visible = false
+		v.park()
 		var pool: Array = _view_pool.get(v.model_key, [])
 		pool.append(v)
 		_view_pool[v.model_key] = pool
@@ -651,7 +751,7 @@ func _ev_respawn(id: int, p: Vector2) -> void:
 		u.alive = true
 		u.pos = p
 		u.hp = u.max_hp
-		_buffers[id] = [[_clock, p, u.facing]]
+		_buffers[id] = [[_clock - Game.INTERP_DELAY, p, u.facing]]
 	var v: UnitView = views.get(id)
 	if v:
 		v.revive()
@@ -813,6 +913,11 @@ func _update_views(delta: float) -> void:
 	var alpha := clampf(_acc / Game.TICK, 0.0, 1.0)
 	var render_t := _clock - Game.INTERP_DELAY
 	var local_hd := local_hero_data()
+	# area visibile approssimata (cerchio attorno al punto inquadrato, cresce con lo zoom)
+	var cam_focus := cam.focus
+	var view_r := cam.zoom * 1.6 + 8.0
+	var view_r2 := view_r * view_r
+	var frame := Engine.get_process_frames()
 	for id in views:
 		var v: UnitView = views[id]
 		var u: Unit = units.get(id)
@@ -846,6 +951,10 @@ func _update_views(delta: float) -> void:
 				moving = (v.vis_pos - MapData.to3(p)).length() > 0.01
 		var speed := u.current_move_speed() if is_server else (_local_hero_speed() if u.is_hero() else u.move_speed)
 		v.update_visual(delta, MapData.to3(p), f, moving, speed, u.invulnerable, stunned)
+		if v.anim and v.kind != Game.Kind.HERO:
+			var dx := p.x - cam_focus.x
+			var dz := p.y - cam_focus.z
+			v.tick_anim(delta, dx * dx + dz * dz < view_r2, frame)
 
 
 func _near_camera(p: Vector3, r: float) -> bool:
@@ -862,7 +971,11 @@ func send_command(cmd: Array) -> void:
 	if is_server:
 		sim.queue_command(local_peer, cmd)
 	else:
-		Net.send_command(cmd)
+		_cmd_seq += 1
+		_cmd_times[_cmd_seq] = _local_time
+		_cmd_times.erase(_cmd_seq - 200)
+		Net.send_command(_cmd_seq, cmd)
+		_last_cmd_time = _local_time
 		# predizione locale
 		match cmd[0]:
 			"move", "amove":

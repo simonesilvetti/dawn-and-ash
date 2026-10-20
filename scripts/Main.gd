@@ -5,6 +5,8 @@ var menu: MainMenu
 var menu_bg: Node3D
 var world: World
 var end_screen: EndScreen
+## Nodo che contiene menu e partita (nei test di screenshot/benchmark è un SubViewport a dimensione fissa).
+var host_node: Node = self
 
 
 func _ready() -> void:
@@ -29,7 +31,7 @@ func show_menu(status: String = "") -> void:
 	Game.mode = Game.Mode.NONE
 	menu_bg = Node3D.new()
 	menu_bg.name = "MenuBackground"
-	add_child(menu_bg)
+	host_node.add_child(menu_bg)
 	MapBuilder.build(menu_bg, mini(int(Game.settings.quality), 1))
 	# edifici delle due basi per dare vita allo sfondo
 	for t in [0, 1]:
@@ -85,7 +87,7 @@ func _start_world(m: int, peer: int) -> World:
 	world = World.new()
 	world.name = "World"
 	world.setup(m, peer)
-	add_child(world)
+	host_node.add_child(world)
 	world.finished.connect(_on_finished)
 	world.leave_requested.connect(_leave_game)
 	Net.world = world

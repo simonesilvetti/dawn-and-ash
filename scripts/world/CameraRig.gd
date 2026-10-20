@@ -2,8 +2,8 @@ class_name CameraRig
 extends Node3D
 ## Telecamera in stile Dota: prospettica inclinata, scorrimento ai bordi/frecce, zoom, blocco sull'eroe.
 
-const PITCH := deg_to_rad(56.0)
-const ZOOM_MIN := 20.0
+const PITCH_DEFAULT := deg_to_rad(50.0)
+const ZOOM_MIN := 16.0
 const ZOOM_MAX := 42.0
 const EDGE := 10
 const LIMIT := 105.0
@@ -11,14 +11,15 @@ const LIMIT := 105.0
 var camera: Camera3D
 var focus := Vector3.ZERO
 var target_focus := Vector3.ZERO
-var zoom := 32.0
-var target_zoom := 32.0
+var zoom := 28.0
+var target_zoom := 28.0
 var locked := false
 var follow_target: Callable           # restituisce la posizione dell'eroe
 var vfx: Vfx
 var orbit := false                    # menu principale: orbita lenta
 var _orbit_angle := 0.0
 var input_enabled := true
+var pitch: float = PITCH_DEFAULT
 
 
 func _ready() -> void:
@@ -89,14 +90,14 @@ func _process(delta: float) -> void:
 func _apply() -> void:
 	if camera == null:
 		return
-	var off := Vector3(0, sin(PITCH) * zoom, cos(PITCH) * zoom)
+	var off := Vector3(0, sin(pitch) * zoom, cos(pitch) * zoom)
 	var sh := Vector3.ZERO
 	if vfx and vfx.shake > 0.0:
 		var s := vfx.shake * vfx.shake * 0.8
 		var t := Time.get_ticks_msec() * 0.05
 		sh = Vector3(sin(t * 1.7), sin(t * 2.3) * 0.5, cos(t * 1.9)) * s
 	camera.position = focus + off + sh
-	camera.rotation = Vector3(-PITCH, 0, 0)
+	camera.rotation = Vector3(-pitch, 0, 0)
 
 
 ## Punto del terreno (y=0) sotto una posizione dello schermo.

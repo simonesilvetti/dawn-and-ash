@@ -54,17 +54,27 @@ func _give(n: Node3D) -> void:
 	_pools[key] = pool
 
 
-## Precarica i pool più usati per evitare scatti alla prima apparizione.
+## Precarica i pool e fa comparire una volta ogni effetto (fuori vista) per compilare gli shader
+## prima della partita: evita gli scatti alla prima esplosione/abilità.
 func warmup() -> void:
 	var tmp: Array = []
-	for t in ["bolt_0", "bolt_1", "creep_bolt_0", "creep_bolt_1", "tower_0", "tower_1"]:
-		for i in 6:
-			tmp.append(_take("proj_" + t, _proj_factory(t)))
-	for n in tmp:
-		_give(n)
-	for k in ["explosion", "burst_gold", "burst_fire"]:
+	for t in ["bolt_0", "bolt_1", "creep_bolt_0", "creep_bolt_1", "tower_0", "tower_1", "fireball_0", "fireball_1", "fountain_0", "fountain_1"]:
+		for i in (6 if not t.begins_with("fireball") else 2):
+			var n := _take("proj_" + t, _proj_factory(t))
+			n.position = Vector3(0, -40, 0)
+			tmp.append(n)
+	for k in ["explosion", "explosion_dire", "big_explosion", "burst_fire", "burst_violet", "burst_gold", "burst_heal", "burst_dust", "ring", "column", "meteor"]:
 		var e: Node3D = _take("fx_" + k, _fx_factory(k))
-		_give(e)
+		e.position = Vector3(0, -40, 0)
+		if e is GPUParticles3D:
+			(e as GPUParticles3D).restart()
+		tmp.append(e)
+	# restituisce tutto al pool dopo un paio di frame (il tempo di compilare le pipeline)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	for n in tmp:
+		if is_instance_valid(n):
+			_give(n)
 
 
 # --- Proiettili ----------------------------------------------------------------

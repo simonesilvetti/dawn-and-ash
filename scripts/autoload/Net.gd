@@ -257,9 +257,8 @@ func send_events(peers: Array, tick: int, evs: Array) -> void:
 		_events.rpc_id(id, tick, evs)
 
 
-func send_snapshot(peers: Array, data: PackedByteArray) -> void:
-	for id in peers:
-		_snapshot.rpc_id(id, data)
+func send_snapshot(peer_id: int, data: PackedByteArray) -> void:
+	_snapshot.rpc_id(peer_id, data)
 	if stats_enabled:
 		bytes_out += data.size() + 8
 
@@ -303,12 +302,12 @@ func _countdown(c: float) -> void:
 
 # --- Gioco: client -> server ------------------------------------------------------
 
-func send_command(cmd: Array) -> void:
-	_send(func(): _command.rpc_id(1, cmd), true)
+func send_command(seq: int, cmd: Array) -> void:
+	_send(func(): _command.rpc_id(1, seq, cmd), true)
 
 
 @rpc("any_peer", "call_remote", "reliable", 1)
-func _command(cmd: Array) -> void:
+func _command(seq: int, cmd: Array) -> void:
 	if not is_host or world == null:
 		return
 	# convalida: solo tipi semplici, dimensione contenuta
@@ -320,7 +319,7 @@ func _command(cmd: Array) -> void:
 			return
 		if t == TYPE_STRING and (v as String).length() > 24:
 			return
-	world.receive_command(multiplayer.get_remote_sender_id(), cmd)
+	world.receive_command(multiplayer.get_remote_sender_id(), seq, cmd)
 
 
 @rpc("any_peer", "call_remote", "unreliable", 3)

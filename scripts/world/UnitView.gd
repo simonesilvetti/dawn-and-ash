@@ -8,8 +8,8 @@ const ENV := "res://assets/models/env/"
 
 # Configurazione dei modelli per (tipo, squadra)
 const MODELS := {
-	"hero": {"file": "Mage.glb", "scale": 0.82,
-		"hide": ["Spellbook", "Spellbook_open", "1H_Wand"],
+	"hero": {"file": "Mage.glb", "scale": 0.95,
+		"hide": ["Spellbook", "Spellbook_open", "1H_Wand", "Mage_Hat"],
 		"idle": "Idle", "move": "Running_A", "attack": "Spellcast_Shoot", "cast": "Spellcast_Long",
 		"death": "Death_A", "hit": "Hit_A", "run_ref": 5.5, "impact": 0.45},
 	"melee_0": {"file": "Knight.glb", "scale": 0.66,
@@ -30,10 +30,13 @@ const MODELS := {
 		"spawn": "Spawn_Ground_Skeletons", "run_ref": 4.6, "impact": 0.45},
 }
 
+const STAFF_TIP_Y := 1.12           # cristallo in cima al bastone di Kael (coordinate locali della mesh)
+
 static var _ring_mats: Dictionary = {}
 static var _flash_mat: StandardMaterial3D
 static var _ring_mesh: QuadMesh
 static var _tint_cache: Dictionary = {}
+static var _anim_configured: Dictionary = {}
 
 var unit_id: int = 0
 var kind: int = 0
@@ -60,6 +63,8 @@ var building_model: Node3D
 var collapse_t: float = -1.0
 var rubble: Node3D
 var hover := false
+var anim_accum: float = 0.0
+var anim_phase: int = 0             # sfasa gli aggiornamenti tra i creep
 
 
 static func make_key(k: int, t: int) -> String:
@@ -70,8 +75,16 @@ static func make_key(k: int, t: int) -> String:
 	return "building"
 
 
+## Mette la vista "a riposo" nel pool: invisibile e senza elaborazione (niente animazioni).
+func park() -> void:
+	visible = false
+	process_mode = Node.PROCESS_MODE_DISABLED
+
+
 func setup(u_id: int, k: int, t: int, subtype: String, quality: int) -> void:
+	process_mode = Node.PROCESS_MODE_INHERIT
 	unit_id = u_id
+	anim_phase = u_id % 2
 	kind = k
 	team = t
 	dead = false
@@ -135,64 +148,82 @@ func _build_character(quality: int) -> void:
 				(m as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	anim = model.find_child("AnimationPlayer", true, false)
 	if anim:
-		for a in [cfg.idle, cfg.move]:
-			if anim.has_animation(a):
-				anim.get_animation(a).loop_mode = Animation.LOOP_LINEAR
+		# i creep avanzano l'animazione a mano (30 Hz, sospesa fuori schermo): meno CPU
+		if kind != Game.Kind.HERO:
+			anim.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
+		_configure_animations(anim, cfg)
 		anim.playback_default_blend_time = 0.15
 	height = 2.3 if kind == Game.Kind.HERO else 1.8
 	bar_width = 70.0 if kind == Game.Kind.HERO else 38.0
-	# Kael: mantello nel colore della squadra, fiamma sul bastone
+	# mantelli nel colore della squadra; Kael ha anche la fiamma sul bastone
+	_tint_capes()
 	if kind == Game.Kind.HERO:
-		_tint_hero()
 		_add_staff_flame(skel)
 
 
-func _tint_hero() -> void:
-	var cape_col := Color(0.95, 0.35, 0.18) if team == 0 else Color(0.45, 0.2, 0.65)
-	for mi in meshes:
-		if mi.name == "Mage_Cape" or mi.name == "Mage_Hat":
-			var key := "%s_%d" % [mi.name, team]
-			var mat: StandardMaterial3D = _tint_cache.get(key)
-			if mat == null:
-				var base := mi.get_active_material(0)
-				mat = (base.duplicate() if base else StandardMaterial3D.new()) as StandardMaterial3D
-				mat.albedo_color = cape_col if mi.name == "Mage_Cape" else cape_col.lerp(Color.WHITE, 0.35)
-				_tint_cache[key] = mat
-			mi.material_override = mat
-
-
-func _add_staff_flame(skel: Skeleton3D) -> void:
-	if skel == null:
+## Imposta i loop delle clip una sola volta per modello: modificare un'Animation condivisa
+## durante la partita costringe tutti gli AnimationPlayer a ricostruire le cache (scatti).
+static func _configure_animations(ap: AnimationPlayer, c: Dictionary) -> void:
+	if _anim_configured.has(c.file):
 		return
-	var ba := BoneAttachment3D.new()
-	ba.bone_name = "handslot.r"
-	skel.add_child(ba)
+	_anim_configured[c.file] = true
+	for a in [c.idle, c.move]:
+		if ap.has_animation(a):
+			ap.get_animation(a).loop_mode = Animation.LOOP_LINEAR
+	for key in ["death", "attack", "spawn", "cast"]:
+		var a: String = c.get(key, "")
+		if a != "" and ap.has_animation(a):
+			ap.get_animation(a).loop_mode = Animation.LOOP_NONE
+
+
+func _tint_capes() -> void:
+	var col: Color
+	if kind == Game.Kind.HERO:
+		col = Color(0.95, 0.35, 0.18) if team == 0 else Color(0.5, 0.22, 0.72)
+	else:
+		col = Color(0.25, 0.75, 0.7) if team == 0 else Color(0.7, 0.2, 0.4)
+	for mi in meshes:
+		var n := String(mi.name)
+		if not (n.ends_with("_Cape") or n.ends_with("_Cloak")):
+			continue
+		var key := "%s_%d_%d" % [n, team, kind]
+		var mat: StandardMaterial3D = _tint_cache.get(key)
+		if mat == null:
+			var base := mi.get_active_material(0)
+			mat = (base.duplicate() if base else StandardMaterial3D.new()) as StandardMaterial3D
+			mat.albedo_color = col
+			_tint_cache[key] = mat
+		mi.material_override = mat
+
+
+func _add_staff_flame(_skel: Skeleton3D) -> void:
+	# la fiamma è figlia del bastone, sull'estremità con il cristallo
+	var staff: Node3D = model.find_child("2H_Staff", true, false)
+	if staff == null:
+		return
+	var tip := Vector3(0, STAFF_TIP_Y, 0)
 	var fire_col := Color(1.0, 0.55, 0.15) if team == 0 else Color(0.7, 0.3, 1.0)
 	var orb := MeshInstance3D.new()
 	var sm := SphereMesh.new()
-	sm.radius = 0.16
-	sm.height = 0.32
+	sm.radius = 0.2
+	sm.height = 0.4
 	sm.radial_segments = 12
 	sm.rings = 6
 	orb.mesh = sm
-	var mat := ShaderMaterial.new()
-	mat.shader = load("res://scripts/vfx/glow.gdshader")
-	mat.set_shader_parameter("color", fire_col)
-	mat.set_shader_parameter("intensity", 3.0)
-	orb.material_override = mat
-	orb.position = Vector3(0, 1.05, 0)
+	orb.material_override = VfxLib.glow_material(fire_col, 3.0)
+	orb.position = tip
 	orb.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	ba.add_child(orb)
+	staff.add_child(orb)
 	var p := VfxLib.make_flame(fire_col)
-	p.position = orb.position
-	ba.add_child(p)
+	p.position = tip
+	staff.add_child(p)
 	light = OmniLight3D.new()
 	light.light_color = fire_col
 	light.light_energy = 1.4
 	light.omni_range = 5.0
 	light.shadow_enabled = false
-	light.position = orb.position
-	ba.add_child(light)
+	light.position = tip
+	staff.add_child(light)
 
 
 func _build_building(subtype: String, quality: int) -> void:
@@ -217,13 +248,9 @@ func _build_building(subtype: String, quality: int) -> void:
 		var cm := MeshInstance3D.new()
 		var pm := PrismMesh.new()
 		var big := subtype == "ancient"
-		pm.size = Vector3(1.2, 1.6, 1.2) * (2.2 if big else 1.0)
+		pm.size = Vector3(0.8, 1.1, 0.8) * (2.4 if big else 1.0)
 		cm.mesh = pm
-		var mat := ShaderMaterial.new()
-		mat.shader = load("res://scripts/vfx/glow.gdshader")
-		mat.set_shader_parameter("color", glow_col)
-		mat.set_shader_parameter("intensity", 2.5)
-		cm.material_override = mat
+		cm.material_override = crystal_material(team)
 		cm.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		var cm2 := cm.duplicate() as MeshInstance3D
 		cm2.rotation_degrees.x = 180.0
@@ -258,9 +285,8 @@ func _build_building(subtype: String, quality: int) -> void:
 		sm.height = r * 2.0
 		shield.mesh = sm
 		var smat := ShaderMaterial.new()
-		smat.shader = load("res://scripts/vfx/glow.gdshader")
-		smat.set_shader_parameter("color", Color(glow_col, 0.25))
-		smat.set_shader_parameter("intensity", 0.6)
+		smat.shader = load("res://scripts/vfx/shield.gdshader")
+		smat.set_shader_parameter("color", glow_col.lerp(Color(0.6, 0.85, 1.0), 0.5))
 		shield.material_override = smat
 		shield.position.y = r * 0.35
 		shield.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -287,6 +313,22 @@ func _build_ring() -> void:
 	ring.position.y = 0.04
 	ring.material_override = ring_material(team, kind == Game.Kind.HERO, false)
 	add_child(ring)
+
+
+static func crystal_material(t: int) -> StandardMaterial3D:
+	var key := "crystal_%d" % t
+	if _tint_cache.has(key):
+		return _tint_cache[key]
+	var c: Color = Game.TEAM_COLORS[t]
+	var m := StandardMaterial3D.new()
+	m.albedo_color = c.lightened(0.2)
+	m.emission_enabled = true
+	m.emission = c
+	m.emission_energy_multiplier = 2.2
+	m.roughness = 0.2
+	m.metallic = 0.3
+	_tint_cache[key] = m
+	return m
 
 
 static func ring_material(t: int, hero: bool, hovered: bool) -> ShaderMaterial:
@@ -395,8 +437,6 @@ func die() -> void:
 		var a: String = cfg.get("death", "Death_A")
 		cur_anim = ""
 		play(a, 0.1, 1.0)
-		if anim.has_animation(a):
-			anim.get_animation(a).loop_mode = Animation.LOOP_NONE
 
 
 func revive() -> void:
@@ -404,6 +444,18 @@ func revive() -> void:
 	death_t = 0.0
 	visible = true
 	_reset_visual()
+
+
+## Avanza l'animazione dei creep a frequenza ridotta; on_screen=false la sospende.
+func tick_anim(delta: float, on_screen: bool, frame: int) -> void:
+	if anim == null or kind == Game.Kind.HERO:
+		return
+	anim_accum += delta
+	if not on_screen and not dead:
+		return
+	if (frame + anim_phase) % 2 == 0 or anim_accum > 0.05:
+		anim.advance(anim_accum)
+		anim_accum = 0.0
 
 
 ## Aggiornamento per frame chiamato da World.

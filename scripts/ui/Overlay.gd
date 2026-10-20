@@ -9,7 +9,7 @@ var font: Font
 
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	font = ThemeDB.fallback_font
 
@@ -35,6 +35,7 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	if world == null or world.cam == null:
 		return
+	var _pt := Time.get_ticks_usec()
 	var cam := world.cam.camera
 	var rect := get_viewport_rect()
 	var zf := clampf(32.0 / world.cam.zoom, 0.7, 1.4)
@@ -104,3 +105,5 @@ func _draw() -> void:
 		var off := Vector2(-sz * 0.28 * txt.length(), 0)
 		draw_string_outline(font, sp + off, txt, HORIZONTAL_ALIGNMENT_LEFT, -1, sz, 4, Color(0, 0, 0, a * 0.85))
 		draw_string(font, sp + off, txt, HORIZONTAL_ALIGNMENT_LEFT, -1, sz, c)
+	if Game.prof_enabled:
+		Game.prof_add("overlay", Time.get_ticks_usec() - _pt)

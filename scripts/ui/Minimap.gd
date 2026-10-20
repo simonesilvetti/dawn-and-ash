@@ -44,8 +44,14 @@ func _make_background(res: int) -> ImageTexture:
 	return ImageTexture.create_from_image(img)
 
 
-func _process(_delta: float) -> void:
-	queue_redraw()
+var _redraw_t := 0.0
+
+func _process(delta: float) -> void:
+	# 10 aggiornamenti al secondo bastano per la minimappa
+	_redraw_t -= delta
+	if _redraw_t <= 0.0:
+		_redraw_t = 0.1
+		queue_redraw()
 
 
 func _gui_input(event: InputEvent) -> void:
@@ -70,6 +76,7 @@ func _gui_input(event: InputEvent) -> void:
 
 func _draw() -> void:
 	draw_texture_rect(_bg, Rect2(Vector2.ZERO, size), false)
+	var _pt := Time.get_ticks_usec()
 	if world == null:
 		return
 	var local_hd := world.local_hero_data()
@@ -108,3 +115,5 @@ func _draw() -> void:
 	pts.append(pts[0])
 	draw_polyline(pts, Color(1, 1, 1, 0.85), 1.5)
 	draw_rect(Rect2(Vector2.ZERO, size), UiKit.GOLD, false, 2.0)
+	if Game.prof_enabled:
+		Game.prof_add("minimap", Time.get_ticks_usec() - _pt)

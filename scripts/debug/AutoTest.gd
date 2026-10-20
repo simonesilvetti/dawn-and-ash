@@ -265,6 +265,8 @@ func _run_net_client() -> void:
 	var port := int(Game.arg_value("--port", "7790"))
 	var duration := float(Game.arg_value("--duration", "40"))
 	print("== NETTEST client (netsim %s)" % str(Net.netsim))
+	if Game.has_arg("--recon-offset"):
+		World.RECON_TICK_OFFSET = float(Game.arg_value("--recon-offset", "-0.5"))
 	Game.player_name = "Client"
 	Net.stats_enabled = true
 	Net.connected.connect(func(): Net.set_ready(true))
@@ -362,7 +364,8 @@ func _run_net_client() -> void:
 func _shot(dir: String, name: String) -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
-	var img := get_viewport().get_texture().get_image()
+	var vp: Viewport = _svp if _svp else get_viewport()
+	var img := vp.get_texture().get_image()
 	var path := dir.path_join(name + ".png")
 	img.save_png(path)
 	print("  screenshot: ", path)
@@ -375,14 +378,32 @@ func _focus(w: World, p: Vector2, zoom: float = 30.0) -> void:
 	w.cam.zoom = zoom
 
 
+## Viewport a dimensione fissa (indipendente dalla finestra, che il window manager può ridimensionare).
+var _svp: SubViewport
+
+func _use_fixed_viewport(size: Vector2i) -> void:
+	_svp = SubViewport.new()
+	_svp.size = size
+	_svp.own_world_3d = true
+	_svp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	_svp.msaa_3d = Viewport.MSAA_2X
+	_svp.audio_listener_enable_3d = true
+	main.add_child(_svp)
+	main.host_node = _svp
+	Game.settings.edge_scroll = false   # il mouse non è dentro il viewport di test
+
+
 func _run_shots() -> void:
+	_use_fixed_viewport(Vector2i(1600, 900))
 	var dir := Game.arg_value("--shots", "res://screenshots")
 	DirAccess.make_dir_recursive_absolute(dir if dir.is_absolute_path() else ProjectSettings.globalize_path(dir))
 	print("== Screenshot in ", dir)
+	main.show_menu()
 	await _wait(4.0)
 	await _shot(dir, "01_menu")
 	var w: World = main.start_training()
 	await _wait(2.5)
+	print("  debug: hud size ", w.hud.size, " vp ", w.hud.get_viewport_rect(), " overlay ", w.overlay.size)
 	_focus(w, MapData.FOUNTAIN[0] + MapData.team_dir(0) * 8.0, 26.0)
 	await _wait(0.8)
 	await _shot(dir, "02_inizio")
@@ -404,8 +425,12 @@ func _run_shots() -> void:
 	await _wait(1.2)
 	await _shot(dir, "03_scontro_creep")
 	var hu := w.local_hero_unit()
-	var e := _nearest_enemy(w, hu.pos, 0, 20.0)
+	var e := _nearest_enemy(w, hu.pos, 0, 40.0)
 	if e:
+		w.send_command(["move", e.pos.x - 9.0, e.pos.y + 9.0])
+		var sm := Time.get_ticks_msec()
+		while hu.pos.distance_to(e.pos) > 13.0 and Time.get_ticks_msec() - sm < 6000:
+			await get_tree().process_frame
 		_focus(w, hu.pos.lerp(e.pos, 0.5), 22.0)
 		w.send_command(["cast", 0, e.pos.x, e.pos.y, 0])
 		await _wait(0.42)
@@ -419,10 +444,11 @@ func _run_shots() -> void:
 	_focus(w, hu.pos, 22.0)
 	await _shot(dir, "05_onda_d_urto")
 	# animazioni: camminata e attacco, sequenze di fotogrammi ravvicinati
-	w.send_command(["move", hu.pos.x - 10.0, hu.pos.y + 10.0])
+	w.cam.pitch = deg_to_rad(28.0)
+	w.send_command(["move", hu.pos.x - 12.0, hu.pos.y + 4.0])
 	await _wait(0.3)
 	for i in 6:
-		_focus(w, hu.pos, 20.0)
+		_focus(w, hu.pos, 11.0)
 		await _shot(dir, "anim_camminata_%d" % i)
 		await _wait(0.1)
 	e = _nearest_enemy(w, hu.pos, 0, 25.0)
@@ -432,9 +458,10 @@ func _run_shots() -> void:
 		while hu.state != Unit.State.ATTACKING and Time.get_ticks_msec() - s < 5000:
 			await get_tree().process_frame
 		for i in 6:
-			_focus(w, hu.pos, 20.0)
+			_focus(w, hu.pos, 11.0)
 			await _shot(dir, "anim_attacco_%d" % i)
 			await _wait(0.1)
+	w.cam.pitch = CameraRig.PITCH_DEFAULT
 	# torre che spara: porta l'eroe (invulnerabile) sotto la T1 nemica
 	w.send_command(["cheat", "invulnerable"])
 	var dt1: Vector2 = MapData.T1[1]
@@ -476,6 +503,7 @@ func _run_shots() -> void:
 # ============================================================================
 
 func _run_benchmark() -> void:
+	_use_fixed_viewport(Vector2i(1600, 900))
 	var secs := float(Game.arg_value("--bench-seconds", "30"))
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 	Engine.max_fps = 0
@@ -501,24 +529,34 @@ func _run_benchmark() -> void:
 		hu.prev_pos = hu.pos
 		_focus(w, Vector2.ZERO, 32.0)
 		await _wait(2.0)
+		Game.prof_enabled = true
+		Game.prof.clear()
 		var frames: Array[float] = []
 		var ticks: Array[int] = []
 		var calls := 0
 		var calls_n := 0
+		var proc_sum := 0.0
 		var last := Time.get_ticks_usec()
 		var end := Time.get_ticks_msec() + int(secs * 1000.0)
 		var next_cast := 0
 		var mem0 := Performance.get_monitor(Performance.MEMORY_STATIC)
+		var spikes: Array = []
 		while Time.get_ticks_msec() < end:
+			var units_before := w.views.size()
+			var tick_before := w.sim.tick_n
 			await get_tree().process_frame
 			var now := Time.get_ticks_usec()
-			frames.append((now - last) / 1000.0)
+			var ft := (now - last) / 1000.0
+			frames.append(ft)
 			last = now
+			if ft > 30.0 and spikes.size() < 12:
+				spikes.append("%.0fms(proc=%.1fms,tick+%d,viste%+d)" % [ft, Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0, w.sim.tick_n - tick_before, w.views.size() - units_before])
 			ticks.append(w.sim.last_tick_usec)
 			calls += int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))
+			proc_sum += Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
 			calls_n += 1
 			_focus(w, Vector2.ZERO, 32.0)
-			if Time.get_ticks_msec() > next_cast:
+			if Time.get_ticks_msec() > next_cast and not Game.has_arg("--bench-nocast"):
 				next_cast = Time.get_ticks_msec() + 700
 				w.send_command(["cheat", "cooldowns"])
 				var e := _nearest_enemy(w, hu.pos, 0, 14.0)
@@ -547,6 +585,16 @@ func _run_benchmark() -> void:
 			"tick_us": tick_avg, "calls": calls / maxf(1, calls_n), "units": units,
 			"mem_mb": Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0, "mem_delta": (Performance.get_monitor(Performance.MEMORY_STATIC) - mem0) / 1048576.0}
 		results.append(r)
+		if not spikes.is_empty():
+			print("  picchi: ", ", ".join(spikes))
+		var pr := "  profilo (ms/frame):"
+		for k in Game.prof:
+			if k.begins_with("ev_"):
+				pr += " %s=%.2fms/evento" % [k, Game.prof[k][0] / 1000.0 / maxf(1, Game.prof[k][1])]
+			else:
+				pr += " %s=%.2f" % [k, Game.prof[k][0] / 1000.0 / maxf(1, calls_n)]
+		print(pr)
+		Game.prof_enabled = false
 		print("  BENCH %s: FPS medio %.0f, 1%% low %.0f, frame max %.1f ms, tick sim %.0f us, draw call %.0f, unità %d" % [r.q, r.fps, r.low, r.max_ms, r.tick_us, r.calls, units])
 	_write_benchmark(results, secs)
 	_finish("BENCHMARK")

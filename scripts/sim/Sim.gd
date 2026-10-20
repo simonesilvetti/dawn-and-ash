@@ -22,7 +22,9 @@ var _next_proj: int = 1
 var _wave_timer: float = Game.FIRST_WAVE
 var _wave_n: int = 0
 var _grid: Dictionary = {}               # Vector2i -> Array[Unit]
-var _cmd_queue: Array = []               # [peer, cmd]
+var _cmd_queue: Array = []               # [peer, cmd, seq]
+var last_seq: Dictionary = {}            # peer -> ultimo numero di sequenza eseguito
+var last_seq_tick: Dictionary = {}       # peer -> tick in cui è stato eseguito
 var _last_sent: Dictionary = {}          # id -> PackedInt32Array per la delta compression
 var _rng := RandomNumberGenerator.new()
 
@@ -134,13 +136,16 @@ func _spawn_wave() -> void:
 # Comandi
 # ============================================================================
 
-func queue_command(peer: int, cmd: Array) -> void:
-	_cmd_queue.append([peer, cmd])
+func queue_command(peer: int, cmd: Array, seq: int = -1) -> void:
+	_cmd_queue.append([peer, cmd, seq])
 
 
 func _process_commands() -> void:
 	for entry in _cmd_queue:
 		_handle_command(entry[0], entry[1])
+		if entry[2] >= 0:
+			last_seq[entry[0]] = entry[2]
+			last_seq_tick[entry[0]] = tick_n
 	_cmd_queue.clear()
 
 
@@ -409,18 +414,26 @@ func tick() -> void:
 	for u in unit_list:
 		u.prev_pos = u.pos
 	_rebuild_grid()
-
+	var p0 := Time.get_ticks_usec()
 	for u in unit_list:
 		if u.alive:
 			_update_unit(u, dt)
-
+	var p1 := Time.get_ticks_usec()
 	_update_projectiles(dt)
 	_update_delayed()
+	var p2 := Time.get_ticks_usec()
 	_separate()
+	var p3 := Time.get_ticks_usec()
 	_update_regen(dt)
 	_update_heroes(dt)
 	_cleanup()
 	last_tick_usec = Time.get_ticks_usec() - t0
+	if Game.prof_enabled:
+		Game.prof_add("t_griglia", p0 - t0)
+		Game.prof_add("t_unita", p1 - p0)
+		Game.prof_add("t_proiettili", p2 - p1)
+		Game.prof_add("t_separazione", p3 - p2)
+		Game.prof_add("t_resto", Time.get_ticks_usec() - p3)
 
 
 func next_wave_in() -> float:
@@ -757,7 +770,9 @@ func _damage(src: Unit, t: Unit, amount: float, magic: bool, is_attack: bool, fo
 	var src_hero := src != null and src.is_hero()
 	if src_hero:
 		var hd := _hero_of(src)
-		if t.is_hero():
+		if force:
+			pass   # danni forzati (trucchi/test): non contano nelle statistiche
+		elif t.is_hero():
 			src.last_hero_attack_time = time
 			t.last_damaged_by_hero_time = time
 			if hd: hd.dmg_heroes += dmg
@@ -976,30 +991,48 @@ func query_units(p: Vector2, r: float) -> Array:
 	return _query(p, r)
 
 
+const _HALF_NEIGHBORS := [Vector2i(0, 0), Vector2i(1, 0), Vector2i(-1, 1), Vector2i(0, 1), Vector2i(1, 1)]
+const _EMPTY: Array = []
+
+## Separazione tra unità vicine: coppie confrontate solo tra celle adiacenti (metà vicinato,
+## nessuna coppia ripetuta, nessuna allocazione). Il controllo dei bordi è fatto una volta per unità spinta.
 func _separate() -> void:
-	for arr in _grid.values():
-		var n: int = arr.size()
-		if n == 0:
+	var pushed: Array[Unit] = []
+	for c in _grid:
+		var a_arr: Array = _grid[c]
+		if a_arr.is_empty():
 			continue
-		for a in arr:
-			if a.is_building() or not a.alive:
+		for off in _HALF_NEIGHBORS:
+			var same: bool = off == Vector2i.ZERO
+			var b_arr: Array = a_arr if same else _grid.get(c + off, _EMPTY)
+			if b_arr.is_empty():
 				continue
-			for b in _query(a.pos, 2.0):
-				if b == a or b.is_building() or b.id < a.id:
+			for i in a_arr.size():
+				var a: Unit = a_arr[i]
+				if a.kind >= Game.Kind.TOWER:
 					continue
-				var d: Vector2 = b.pos - a.pos
-				var min_d: float = a.radius + b.radius
-				var l2 := d.length_squared()
-				if l2 >= min_d * min_d:
-					continue
-				var l := sqrt(l2)
-				var n2 := d / l if l > 0.0001 else Vector2.from_angle(a.id * 1.7)
-				var push := (min_d - l) * 0.5
-				# gli eroi spingono di più di quanto vengano spinti
-				var wa := 0.25 if a.is_hero() else 1.0
-				var wb := 0.25 if b.is_hero() else 1.0
-				a.pos = MapData.clamp_walkable(a.pos - n2 * push * wa, a.radius)
-				b.pos = MapData.clamp_walkable(b.pos + n2 * push * wb, b.radius)
+				for j in range(i + 1 if same else 0, b_arr.size()):
+					var b: Unit = b_arr[j]
+					if b.kind >= Game.Kind.TOWER:
+						continue
+					var dx: float = b.pos.x - a.pos.x
+					var dy: float = b.pos.y - a.pos.y
+					var min_d: float = a.radius + b.radius
+					var l2 := dx * dx + dy * dy
+					if l2 >= min_d * min_d:
+						continue
+					var l := sqrt(l2)
+					var n2 := Vector2(dx / l, dy / l) if l > 0.0001 else Vector2.from_angle(a.id * 1.7)
+					var push := (min_d - l) * 0.5
+					# gli eroi spingono di più di quanto vengano spinti
+					var wa := 0.25 if a.kind == Game.Kind.HERO else 1.0
+					var wb := 0.25 if b.kind == Game.Kind.HERO else 1.0
+					a.pos -= n2 * push * wa
+					b.pos += n2 * push * wb
+					pushed.append(a)
+					pushed.append(b)
+	for u in pushed:
+		u.pos = MapData.clamp_walkable(u.pos, u.radius)
 
 
 # ============================================================================

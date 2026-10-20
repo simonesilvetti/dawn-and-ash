@@ -23,7 +23,7 @@ var _card: PanelContainer
 
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	theme = UiKit.theme()
 	# velo scuro a sinistra per leggibilità
 	var shade := ColorRect.new()

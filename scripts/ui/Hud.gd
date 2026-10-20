@@ -38,7 +38,7 @@ var _fps_timer: float = 0.0
 
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	theme = UiKit.theme()
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -526,6 +526,13 @@ func _update_scoreboard() -> void:
 func _process(delta: float) -> void:
 	if world == null:
 		return
+	var _pt := Time.get_ticks_usec()
+	_hud_update(delta)
+	if Game.prof_enabled:
+		Game.prof_add("hud", Time.get_ticks_usec() - _pt)
+
+
+func _hud_update(delta: float) -> void:
 	_score.visible = Input.is_action_pressed("scoreboard")
 	if _score.visible:
 		_update_scoreboard()

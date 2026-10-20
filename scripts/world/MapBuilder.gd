@@ -78,7 +78,7 @@ static func _build_ground(root: Node3D) -> void:
 	var mi := MeshInstance3D.new()
 	mi.name = "Ground"
 	var pm := PlaneMesh.new()
-	pm.size = Vector2(Game.MAP_HALF * 2.0 + 60.0, Game.MAP_HALF * 2.0 + 60.0)
+	pm.size = Vector2(380.0, 380.0)
 	mi.mesh = pm
 	var mat := ShaderMaterial.new()
 	mat.shader = load("res://scripts/world/ground.gdshader")
@@ -142,8 +142,8 @@ static func _build_foliage(root: Node3D, quality: int) -> void:
 	var placed: Array[Vector2] = []
 	var grid: Dictionary = {}
 	var cell := 6.0
-	var attempts := int(5200 * density)
-	var limit := Game.MAP_HALF - 12.0
+	var attempts := int(6600 * density)
+	var limit := 142.0
 	for i in attempts:
 		var p := Vector2(rng.randf_range(-limit, limit), rng.randf_range(-limit, limit))
 		# fuori dall'area percorribile con un margine (la vegetazione fa da "muro")
@@ -176,21 +176,27 @@ static func _build_foliage(root: Node3D, quality: int) -> void:
 		var list: Array = buckets.get(key, [])
 		list.append(Transform3D(basis, Vector3(p.x, 0.0, p.y)))
 		buckets[key] = list
-	# Montagne sul bordo esterno per chiudere la vista
+	# Montagne su un bordo quadrato, lontano dalle basi e dietro la telecamera a sud
 	var mountains := ["mountain_A_grass_trees", "mountain_B_grass_trees", "mountain_C_grass_trees", "hills_A_trees", "hills_B_trees"]
-	var steps := 64
-	for i in steps:
-		var a := TAU * i / steps
-		var r := Game.MAP_HALF + rng.randf_range(0.0, 10.0)
-		var p := Vector2(cos(a), sin(a)) * r
-		p = p.clamp(Vector2(-Game.MAP_HALF - 8, -Game.MAP_HALF - 8), Vector2(Game.MAP_HALF + 8, Game.MAP_HALF + 8))
-		var t: String = mountains[rng.randi_range(0, mountains.size() - 1)]
-		var ash := p.dot(MapData.lane_dir()) > 20.0
-		var s := rng.randf_range(10.0, 15.0)
-		var key := t + ("|ash" if ash else "")
-		var list: Array = buckets.get(key, [])
-		list.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s, s * rng.randf_range(0.8, 1.3), s)), Vector3(p.x, -0.3, p.y)))
-		buckets[key] = list
+	var edge := 146.0
+	for side in 4:
+		var n := 22
+		for i in n + 1:
+			var t := -edge + 2.0 * edge * i / n
+			var p: Vector2
+			match side:
+				0: p = Vector2(t, -edge)            # nord
+				1: p = Vector2(edge, t)             # est
+				2: p = Vector2(-edge, t)            # ovest
+				_: p = Vector2(t, edge + 8.0)       # sud (dietro la telecamera)
+			p += Vector2(rng.randf_range(-4, 4), rng.randf_range(-4, 4))
+			var tt: String = mountains[rng.randi_range(0, mountains.size() - 1)]
+			var ash := p.dot(MapData.lane_dir()) > 20.0
+			var sc := rng.randf_range(11.0, 16.0)
+			var key: String = tt + ("|ash" if ash else "")
+			var list: Array = buckets.get(key, [])
+			list.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(sc, sc * rng.randf_range(0.8, 1.3), sc)), Vector3(p.x, -0.3, p.y)))
+			buckets[key] = list
 	# Rocce lungo i bordi della corsia
 	for i in int(260 * density):
 		var t := rng.randf()
@@ -234,7 +240,8 @@ static func _build_foliage(root: Node3D, quality: int) -> void:
 			mat.set_shader_parameter("sway", 0.0)
 		mmi.material_override = mat
 		# Solo il bosco vicino proietta ombre (costo contenuto)
-		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if quality >= 1 and not parts[0].begins_with("mountain") else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		# ombre della vegetazione solo in qualità alta (costo elevato su GPU integrate)
+		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if quality >= 2 and not parts[0].begins_with("mountain") else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		mmi.visibility_range_end = 0.0
 		folder.add_child(mmi)
 
