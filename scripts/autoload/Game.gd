@@ -140,12 +140,12 @@ const ITEMS := {
 	"boots": {"name": "Stivali della velocità", "cost": 450, "move_speed": 1.5, "desc": "+1.5 velocità di movimento"},
 	"vitality": {"name": "Gemma della vitalità", "cost": 500, "hp": 250.0, "desc": "+250 vita"},
 	"potion": {"name": "Pozione di cura", "cost": 100, "consumable": true, "heal": 400.0, "duration": 8.0,
-		"desc": "Consumabile: ripristina 400 vita in 8 s (interrotta dai danni di un eroe)"},
+		"desc": "Ripristina 400 vita in 8 s (interrotta dai danni degli eroi)"},
 	# Fase 2
 	"crystal": {"name": "Cristallo arcano", "cost": 500, "mana": 200.0, "mana_regen": 1.0, "desc": "+200 mana, +1 rigenerazione mana", "phase2": true},
 	"ring": {"name": "Anello di rigenerazione", "cost": 300, "hp_regen": 4.0, "desc": "+4 rigenerazione vita", "phase2": true},
 	"mana_potion": {"name": "Pozione di mana", "cost": 100, "consumable": true, "restore_mana": 250.0, "duration": 8.0,
-		"desc": "Consumabile: ripristina 250 mana in 8 s", "phase2": true},
+		"desc": "Ripristina 250 mana in 8 s", "phase2": true},
 	"vampire": {"name": "Lama del vampiro", "cost": 1200, "damage": 20.0, "lifesteal": 0.15, "desc": "+20 danno, 15% rubavita", "phase2": true},
 }
 const SHOP_ORDER := ["sword", "armor", "boots", "vitality", "potion", "crystal", "ring", "mana_potion", "vampire"]

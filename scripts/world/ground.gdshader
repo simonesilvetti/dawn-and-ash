@@ -70,8 +70,8 @@ void fragment() {
 	// Anello decorativo nel colore della squadra
 	float ring_r = smoothstep(1.0, 0.0, abs(dr - (base_rad - 6.5)));
 	float ring_d = smoothstep(1.0, 0.0, abs(dd - (base_rad - 6.5)));
-	col = mix(col, vec3(0.85, 0.70, 0.30), ring_r * 0.8);
-	col = mix(col, vec3(0.55, 0.15, 0.35), ring_d * 0.8);
+	col = mix(col, vec3(0.85, 0.70, 0.30), ring_r * 0.6);
+	col = mix(col, vec3(0.45, 0.18, 0.30), ring_d * 0.6);
 
 	// Fiume perpendicolare alla corsia, con meandri
 	vec2 river_dir = vec2(-lane_dir.y, lane_dir.x);

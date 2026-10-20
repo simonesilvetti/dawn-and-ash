@@ -239,9 +239,9 @@ func _build_building(subtype: String, quality: int) -> void:
 	var file := ""
 	var s := 4.0
 	match subtype:
-		"t1": file = "building_tower_A_%s.gltf" % col; s = 3.6; height = 9.5; bar_width = 90.0
-		"t2": file = "building_tower_B_%s.gltf" % col; s = 3.6; height = 10.5; bar_width = 90.0
-		"ancient": file = "building_castle_%s.gltf" % col; s = 3.0; height = 15.0; bar_width = 140.0
+		"t1": file = "building_tower_A_%s.gltf" % col; s = 3.6; height = 8.6; bar_width = 90.0
+		"t2": file = "building_tower_B_%s.gltf" % col; s = 3.6; height = 9.6; bar_width = 90.0
+		"ancient": file = "building_castle_%s.gltf" % col; s = 3.0; height = 13.0; bar_width = 140.0
 		"fountain": file = "building_well_%s.gltf" % col; s = 4.5; height = 4.5; bar_width = 0.0
 	building_model = (load(ENV + file) as PackedScene).instantiate()
 	building_model.scale = Vector3.ONE * s
@@ -265,7 +265,7 @@ func _build_building(subtype: String, quality: int) -> void:
 		cm2.position.y = -pm.size.y
 		crystal.add_child(cm)
 		crystal.add_child(cm2)
-		crystal.position.y = height - (1.0 if not big else 0.0)
+		crystal.position.y = height - (0.4 if not big else -1.0)
 		add_child(crystal)
 		if quality >= 1 or big:
 			light = OmniLight3D.new()
@@ -288,7 +288,7 @@ func _build_building(subtype: String, quality: int) -> void:
 	if subtype == "t2" or subtype == "ancient":
 		shield = MeshInstance3D.new()
 		var sm := SphereMesh.new()
-		var r := 4.5 if subtype == "t2" else 9.0
+		var r := 4.0 if subtype == "t2" else 7.5
 		sm.radius = r
 		sm.height = r * 2.0
 		shield.mesh = sm
@@ -320,8 +320,21 @@ func _build_ring() -> void:
 		Game.Kind.CREEP_SIEGE: r = 1.15
 	ring.scale = Vector3(r, 1, r)
 	ring.position.y = 0.04
-	ring.material_override = ring_material(team, kind == Game.Kind.HERO, false)
+	ring.material_override = ring_material(team, kind == Game.Kind.HERO, false) if kind < Game.Kind.TOWER else building_ring_material(team)
 	add_child(ring)
+
+
+static func building_ring_material(t: int) -> ShaderMaterial:
+	var key := "bring_%d" % t
+	if _ring_mats.has(key):
+		return _ring_mats[key]
+	var mat := ShaderMaterial.new()
+	mat.shader = load("res://scripts/world/ring.gdshader")
+	mat.set_shader_parameter("color", Color(Game.TEAM_COLORS[t], 0.4))
+	mat.set_shader_parameter("inner", 0.9)
+	mat.set_shader_parameter("shadow", 0.25)
+	_ring_mats[key] = mat
+	return mat
 
 
 static func crystal_material(t: int) -> StandardMaterial3D:
@@ -350,6 +363,7 @@ static func ring_material(t: int, hero: bool, hovered: bool) -> ShaderMaterial:
 	if hovered:
 		c = Color(1.0, 0.25, 0.2)
 	mat.set_shader_parameter("color", Color(c, 1.0 if (hero or hovered) else 0.75))
+	mat.set_shader_parameter("shadow", 0.45)
 	mat.set_shader_parameter("inner", 0.72 if hero else 0.8)
 	mat.set_shader_parameter("pulse", 1.0 if (hero or hovered) else 0.0)
 	_ring_mats[key] = mat
@@ -360,7 +374,10 @@ func set_hover(h: bool) -> void:
 	if h == hover or ring == null:
 		return
 	hover = h
-	ring.material_override = ring_material(team, kind == Game.Kind.HERO, h)
+	if kind >= Game.Kind.TOWER and not h:
+		ring.material_override = building_ring_material(team)
+	else:
+		ring.material_override = ring_material(team, kind == Game.Kind.HERO, h)
 
 
 # --- Animazione --------------------------------------------------------------

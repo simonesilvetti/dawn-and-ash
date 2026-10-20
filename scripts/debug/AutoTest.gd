@@ -673,7 +673,7 @@ func _write_benchmark(results: Array, secs: float) -> void:
 	var old := FileAccess.get_file_as_string(path) if FileAccess.file_exists(path) else "# Risultati dei benchmark\n\nScenario: 5 ondate per lato contemporaneamente al centro della mappa + abilità lanciate a ripetizione, telecamera sullo scontro, VSync disattivato.\nLimiti (preset Media): FPS medio ≥ 60, 1% low ≥ 45, tick di simulazione < 4 ms, draw call < 1000.\n"
 	var gpu := RenderingServer.get_video_adapter_name()
 	var label := Game.arg_value("--bench-label", "")
-	var s := "\n## %s %s\n\nGPU: %s · risoluzione %s · durata %d s per preset\n\n| Preset | FPS medio | 1%% low | Frame max (ms) | Tick sim (µs) | Draw call | Unità | Memoria (MB) |\n|---|---|---|---|---|---|---|---|\n" % [Time.get_datetime_string_from_system(), label, gpu, str(get_viewport().get_visible_rect().size), int(secs)]
+	var s := "\n## %s %s\n\nGPU: %s · risoluzione %s · durata %d s per preset\n\n| Preset | FPS medio | 1%% low | Frame max (ms) | Tick sim (µs) | Draw call | Unità | Memoria (MB) |\n|---|---|---|---|---|---|---|---|\n" % [Time.get_datetime_string_from_system(), label, gpu, str(_svp.size) if _svp else str(get_viewport().get_visible_rect().size), int(secs)]
 	for r in results:
 		s += "| %s | %.0f | %.0f | %.1f | %.0f | %.0f | %d | %.0f |\n" % [r.q, r.fps, r.low, r.max_ms, r.tick_us, r.calls, r.units, r.mem_mb]
 	var f := FileAccess.open(path, FileAccess.WRITE)

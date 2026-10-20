@@ -66,9 +66,55 @@ func mouse_over_ui() -> bool:
 	return false
 
 
+static var _cursor_sword: ImageTexture
+static var _cursor_aim: ImageTexture
+var _cursor_state := ""
+
+
 func set_attack_cursor(on: bool) -> void:
 	var targeting := world != null and (world.targeting_slot >= 0 or world.attack_move_mode)
-	Input.set_default_cursor_shape(Input.CURSOR_CROSS if (on or targeting) else Input.CURSOR_ARROW)
+	var state := "aim" if (targeting and not on) else ("sword" if on else "normal")
+	if state == _cursor_state:
+		return
+	_cursor_state = state
+	if DisplayServer.get_name() == "headless":
+		return
+	if _cursor_sword == null:
+		_cursor_sword = _make_cursor(true)
+		_cursor_aim = _make_cursor(false)
+	match state:
+		"sword": Input.set_custom_mouse_cursor(_cursor_sword, Input.CURSOR_ARROW, Vector2(2, 2))
+		"aim": Input.set_custom_mouse_cursor(_cursor_aim, Input.CURSOR_ARROW, Vector2(16, 16))
+		_: Input.set_custom_mouse_cursor(null)
+
+
+## Cursori disegnati via codice: spada rossa (attacco) e mirino arancio (mira delle abilità).
+static func _make_cursor(sword: bool) -> ImageTexture:
+	var img := Image.create(32, 32, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	if sword:
+		for i in range(2, 24):
+			for w in range(-2, 3):
+				var c := Color(0.95, 0.2, 0.15) if absi(w) < 2 else Color(0.25, 0.02, 0.02)
+				if i < 4: c = Color(1, 0.6, 0.55)
+				img.set_pixel(clampi(i + w, 0, 31), clampi(i - w, 0, 31), c)
+		for k in range(-5, 6):
+			for t in 2:
+				img.set_pixel(clampi(22 + k + t, 0, 31), clampi(22 - k + t, 0, 31), Color(0.85, 0.68, 0.3))
+		for i in range(24, 30):
+			img.set_pixel(i, i, Color(0.4, 0.25, 0.12))
+			img.set_pixel(i, i + 1 if i < 31 else i, Color(0.3, 0.18, 0.08))
+	else:
+		var c := Vector2(16, 16)
+		for y in 32:
+			for x in 32:
+				var d := Vector2(x, y).distance_to(c)
+				if absf(d - 11.0) < 1.2:
+					img.set_pixel(x, y, Color(1.0, 0.6, 0.2))
+				elif (absi(x - 16) < 1 or absi(y - 16) < 1) and d > 4.0 and d < 15.0:
+					img.set_pixel(x, y, Color(1.0, 0.85, 0.5))
+		img.set_pixel(16, 16, Color(1, 1, 1))
+	return ImageTexture.create_from_image(img)
 
 
 # --- Costruzione -------------------------------------------------------------

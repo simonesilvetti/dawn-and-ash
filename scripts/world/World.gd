@@ -1191,6 +1191,7 @@ func try_ability(i: int) -> void:
 		return
 	_cancel_targeting()
 	targeting_slot = i
+	hud.set_attack_cursor(hovered_id != 0)
 
 
 func _cancel_targeting() -> void:

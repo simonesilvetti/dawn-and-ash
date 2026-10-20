@@ -84,8 +84,10 @@ func _draw() -> void:
 		for i in steps + 1:
 			var a := -PI * 0.5 + TAU * frac * float(i) / steps
 			pts.append(size * 0.5 + Vector2(cos(a), sin(a)) * size.x)
-		draw_colored_polygon(pts, Color(0, 0, 0, 0.6))
-		draw_rect(r, Color(0, 0, 0, 0.0))
+		# spicchio ritagliato dentro l'icona
+		var box := PackedVector2Array([Vector2.ZERO, Vector2(size.x, 0), size, Vector2(0, size.y)])
+		for poly in Geometry2D.intersect_polygons(pts, box):
+			draw_colored_polygon(poly, Color(0, 0, 0, 0.6))
 		var txt := str(ceili(cooldown))
 		draw_string_outline(font, Vector2(size.x * 0.5 - 6 * txt.length(), size.y * 0.5 + 8), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, 4, Color.BLACK)
 		draw_string(font, Vector2(size.x * 0.5 - 6 * txt.length(), size.y * 0.5 + 8), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color.WHITE)

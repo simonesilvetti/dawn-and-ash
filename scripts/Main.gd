@@ -71,7 +71,8 @@ func _clear() -> void:
 		menu_bg.queue_free()
 		menu_bg = null
 		menu = null
-	Input.set_default_cursor_shape(Input.CURSOR_ARROW)
+	if DisplayServer.get_name() != "headless":
+		Input.set_custom_mouse_cursor(null)
 
 
 # --- Partita ----------------------------------------------------------------------------

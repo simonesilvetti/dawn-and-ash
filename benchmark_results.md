@@ -114,3 +114,13 @@ GPU: Intel(R) Iris(R) Xe Graphics (ADL GT2) · risoluzione (1600.0, 1743.0) · d
 | Preset | FPS medio | 1% low | Frame max (ms) | Tick sim (µs) | Draw call | Unità | Memoria (MB) |
 |---|---|---|---|---|---|---|---|
 | Media | 90 | 65 | 17.8 | 1032 | 529 | 54 | 130 |
+
+## 2026-10-20T20:29:21 FINALE (Fase 1 + Fase 2)
+
+GPU: Intel(R) Iris(R) Xe Graphics (ADL GT2) · risoluzione (1600, 900) · durata 25 s per preset
+
+| Preset | FPS medio | 1% low | Frame max (ms) | Tick sim (µs) | Draw call | Unità | Memoria (MB) |
+|---|---|---|---|---|---|---|---|
+| Bassa | 124 | 67 | 18.9 | 1047 | 504 | 56 | 133 |
+| Media | 87 | 64 | 25.0 | 969 | 519 | 58 | 135 |
+| Alta | 42 | 32 | 35.0 | 1710 | 1246 | 57 | 135 |
