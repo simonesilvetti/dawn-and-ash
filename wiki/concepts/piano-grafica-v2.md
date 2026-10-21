@@ -59,8 +59,18 @@ screenshot aggiornati in `screenshots/`.
 > dimezzati i triangoli e ridotta la densità: da rimisurare), normal map del terreno ~1.7 ms, acqua ~1.4 ms,
 > rilievo del terreno ~0.9 ms. Le misure variano molto col calore del chip da 9 W.
 
+### Aggiornamento 2026-10-21 (sera): prestazioni recuperate
+Misure stabili a macchina libera (Media, 20 s, alternate con `0e73d5e`). Costi GPU trovati con interruttori temporanei:
+alberi/montagne ~4 ms (una MultiMesh per tipo su tutta la mappa: niente culling), acqua ~2 ms (copia del depth buffer),
+rilievo ~1.8 ms (mesh unica), FXAA ~1 ms (c'era già prima), erba/normal map/scenografia ~0.6 ms ciascuno, luci dei falò ~0.
+Correzioni: terreno e vegetazione a blocchi, acqua con mappa del fondo. Risultato: GPU 21.2 → ~15–16 ms, FPS 43 → 50–56,
+alla pari con la versione precedente (54–55 nella stessa sessione). Erba, normal map e scenografia restano in Media.
+
+> [!warning] Oggi la macchina è più lenta che nelle misure del 2026-10-20: anche la versione precedente fa ~55 FPS in
+> Media invece di 87. I limiti assoluti (≥ 60 / 45) vanno ricontrollati con `--benchmark` sui tre preset.
+
 ### Prossimi passi
-1. A portatile **freddo**, confronto A/B alternato vecchia/nuova versione (script in fondo) per avere numeri affidabili.
+1. ~~Confronto A/B~~ fatto (vedi sopra).
 2. Se Media resta sotto 60 FPS medi / 45 di 1% low: in Media terreno senza normal map (variante QUALITY_LOW),
    erba ancora più rada o solo ai bordi della corsia, mesh del terreno con passo 2 m fuori dall'area visibile;
    valutare risoluzione 3D al 90% con FSR in Media.
@@ -68,5 +78,15 @@ screenshot aggiornati in `screenshots/`.
 4. Secondo ciclo di revisione grafica: acqua del guado ancora un po' piatta; verificare la luce di contorno sui personaggi.
 5. Commit finale.
 
-Script A/B usato (preset Media, alterna `git stash` / `git stash pop`; controllare `git stash list` se interrotto):
+> [!note] Tentativo del 2026-10-21 (pomeriggio): misure inutilizzabili. Anche la versione precedente faceva ~47 FPS
+> in Media (contro 87 del giorno prima) e la stessa configurazione oscillava tra 40 e 50 FPS. Rapporto indicativo
+> v2/precedente ≈ 39/47 (−18%). Le finestre del benchmark disturbano l'utente: **misurare solo quando la macchina è
+> libera e scarica** (fresca, nessun altro carico), oppure in uno special workspace di Hyprland dopo aver verificato
+> che una finestra nascosta non venga rallentata.
+
+Metodo A/B consigliato: `git worktree add <scratch>/old 0e73d5e`, `godot --headless --import` nella copia, poi
+benchmark alternati tra le due cartelle (niente `git stash`). Ogni benchmark aggiunge righe a `benchmark_results.md`:
+annullarle se sono solo prove.
+
+Script A/B usato in precedenza (preset Media, alterna `git stash` / `git stash pop`; controllare `git stash list` se interrotto):
 `godot -- --benchmark --bench-preset 1 --bench-seconds 12` sul commit `0e73d5e` (versione prima della v2) e su quella attuale, alternati, due volte ciascuno.

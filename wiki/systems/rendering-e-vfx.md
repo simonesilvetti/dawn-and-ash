@@ -15,7 +15,8 @@ Nel guado del fiume le unità scendono all'altezza visiva del terreno (`Terrain.
 ## Terreno, acqua, ambiente
 - `Terrain.gd`: altezza visiva (argini e colline fuori dall'area percorribile, piano attorno alle basi, alveo del fiume con guado di 0.42 m nella corsia) e mesh a griglia 360 m con passo 1.5 m (calcolata una volta).
 - `ground.gdshader`: 6 texture ambientCG (erba, sentiero, lastricato, roccia biplanare sui pendii, ciottoli, terra bruciata) con normal map; si campionano solo i livelli presenti nel pixel. Varianti per qualità con `#define` (`MapBuilder.shader_variant`).
-- `water.gdshader`: rettangolo piatto a quota −0.16; il terreno più alto lo nasconde, così la riva nasce dal test di profondità. Colore secondo la profondità (depth buffer), schiuma, finte caustiche, increspature da una NoiseTexture2D normal map.
+- `water.gdshader`: rettangolo piatto a quota −0.16; il terreno più alto lo nasconde, così la riva nasce dal test di profondità. Colore secondo la profondità, schiuma, increspature da una NoiseTexture2D normal map. In Bassa e Media la profondità viene da una mappa del fondo 512×32 calcolata una volta (`Terrain.build_water`, ~2 ms di GPU risparmiati); in Alta dal depth buffer (schiuma anche attorno alle unità) con finte caustiche.
+- Terreno (`Terrain.meshes()`) e alberi/rocce/montagne (`MapBuilder._build_foliage`) sono divisi in blocchi (60 m e 40 m) così la GPU scarta quelli fuori inquadratura.
 - `Scenery.gd`: vegetazione minuta procedurale in MultiMesh a blocchi di 40 m (culling e distanza massima), mura ad anello attorno alle basi con varco verso la corsia, torri con catapulta, villaggio, oggetti di scena lungo la corsia, ponti in rovina, falò e bracieri con luce (tween infinito, niente script per nodo), braci nella metà del Culto.
 
 ## Effetti (`Vfx`)

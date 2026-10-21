@@ -16,7 +16,7 @@ static func build(root: Node3D, quality: int) -> void:
 	_build_ground(root, quality)
 	Terrain.build_water(root, quality, noise_texture())
 	if quality < 1:
-		var g: MeshInstance3D = root.get_node("Ground")
+		var g: MeshInstance3D = root.get_node("Ground").get_child(0)   # materiale condiviso da tutti i blocchi
 		(g.material_override as ShaderMaterial).set_shader_parameter("clouds", false)
 	_build_foliage(root, quality)
 	_build_props(root)
@@ -114,9 +114,6 @@ static func _texture(name: String) -> Texture2D:
 
 
 static func _build_ground(root: Node3D, quality: int) -> void:
-	var mi := MeshInstance3D.new()
-	mi.name = "Ground"
-	mi.mesh = Terrain.mesh()
 	var mat := ShaderMaterial.new()
 	mat.shader = shader_variant("res://scripts/world/ground.gdshader", quality)
 	mat.set_shader_parameter("noise_tex", noise_texture())
@@ -131,12 +128,23 @@ static func _build_ground(root: Node3D, quality: int) -> void:
 	mat.set_shader_parameter("base_r", MapData.BASE_CENTER[0])
 	mat.set_shader_parameter("base_d", MapData.BASE_CENTER[1])
 	mat.set_shader_parameter("base_rad", Game.BASE_RADIUS)
-	mi.material_override = mat
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	root.add_child(mi)
+	var folder := Node3D.new()
+	folder.name = "Ground"
+	root.add_child(folder)
+	for m in Terrain.meshes():
+		var mi := MeshInstance3D.new()
+		mi.mesh = m
+		mi.material_override = mat
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		folder.add_child(mi)
 
 
 # --- Vegetazione --------------------------------------------------------------
+
+## Suffisso del blocco Scenery.CELL×CELL: una MultiMesh per blocco, così quelle fuori inquadratura vengono scartate.
+static func _cell_key(p: Vector2) -> String:
+	return "|%d,%d" % [floori(p.x / Scenery.CELL), floori(p.y / Scenery.CELL)]
+
 
 ## Restituisce la prima Mesh contenuta in un modello glTF (cache).
 static func model_mesh(file: String) -> Mesh:
@@ -187,7 +195,7 @@ static func _build_foliage(root: Node3D, quality: int) -> void:
 	rng.seed = 4242
 	var density: float = [0.35, 0.7, 1.0][clampi(quality, 0, 2)]
 	var types := ["trees_A_large", "trees_A_medium", "trees_B_large", "trees_B_medium", "trees_A_small", "trees_B_small", "tree_single_A", "tree_single_B"]
-	var buckets: Dictionary = {}       # (tipo, cenere) -> Array[Transform3D]
+	var buckets: Dictionary = {}       # "tipo|cenere|blocco" -> Array[Transform3D]
 	var placed: Array[Vector2] = []
 	var grid: Dictionary = {}
 	var cell := 6.0
@@ -219,7 +227,7 @@ static func _build_foliage(root: Node3D, quality: int) -> void:
 		else:
 			t = types[rng.randi_range(0, 5)]
 		var ash := p.dot(MapData.lane_dir()) > 25.0 + rng.randf_range(-15.0, 15.0)
-		var key := t + ("|ash" if ash else "")
+		var key := t + ("|ash" if ash else "") + _cell_key(p)
 		var s := rng.randf_range(4.2, 5.6)
 		var basis := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s, s * rng.randf_range(0.9, 1.15), s))
 		var list: Array = buckets.get(key, [])
@@ -242,7 +250,7 @@ static func _build_foliage(root: Node3D, quality: int) -> void:
 			var tt: String = mountains[rng.randi_range(0, mountains.size() - 1)]
 			var ash := p.dot(MapData.lane_dir()) > 20.0
 			var sc := rng.randf_range(11.0, 16.0)
-			var key: String = tt + ("|ash" if ash else "")
+			var key: String = tt + ("|ash" if ash else "") + _cell_key(p)
 			var list: Array = buckets.get(key, [])
 			list.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(sc, sc * rng.randf_range(0.8, 1.3), sc)), Vector3(p.x, Terrain.height(p) - 0.3, p.y)))
 			buckets[key] = list
@@ -256,7 +264,7 @@ static func _build_foliage(root: Node3D, quality: int) -> void:
 			continue
 		var rt: String = "rock_single_" + ["A", "B", "C", "D", "E"][rng.randi_range(0, 4)]
 		var s := rng.randf_range(4.0, 9.0)
-		var key: String = rt + ("|ash" if p.dot(MapData.lane_dir()) > 25.0 else "")
+		var key: String = rt + ("|ash" if p.dot(MapData.lane_dir()) > 25.0 else "") + _cell_key(p)
 		var list: Array = buckets.get(key, [])
 		list.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s, s, s)), Vector3(p.x, Terrain.height(p) - 0.15, p.y)))
 		buckets[key] = list
@@ -278,7 +286,7 @@ static func _build_foliage(root: Node3D, quality: int) -> void:
 			mm.set_instance_transform(i, list[i])
 		var mmi := MultiMeshInstance3D.new()
 		mmi.multimesh = mm
-		var ash: bool = parts.size() > 1
+		var ash: bool = parts[1] == "ash"
 		var is_rock := parts[0].begins_with("rock")
 		var tint := Color(1, 1, 1)
 		if ash:

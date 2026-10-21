@@ -1,20 +1,27 @@
 shader_type spatial;
-// Acqua del fiume: colore secondo la profondità (letta dal depth buffer), schiuma a riva, increspature che scorrono.
-// QUALITY_HIGH aggiunge riflessi sulle creste e finte caustiche (Terrain.build_water).
+// Acqua del fiume: colore secondo la profondità, schiuma a riva, increspature che scorrono.
+// La profondità viene da una mappa del fondo calcolata una volta (Terrain.build_water): niente copia del depth buffer.
+// QUALITY_HIGH legge invece il depth buffer (schiuma anche attorno alle unità) e aggiunge riflessi e finte caustiche.
 render_mode blend_mix, depth_draw_never, cull_back, diffuse_burley, specular_schlick_ggx, shadows_disabled;
 
+#ifdef QUALITY_HIGH
 uniform sampler2D DEPTH_TEXTURE : hint_depth_texture, filter_nearest;
+#endif
+uniform sampler2D bed_tex : filter_linear, repeat_disable;   // profondità del fondo (0..bed_scale metri)
+uniform float bed_scale = 2.0;
+uniform vec2 plane_size = vec2(340.0, 30.0);
 uniform sampler2D normal_tex : hint_normal, filter_linear_mipmap, repeat_enable;
 uniform sampler2D noise_tex : filter_linear_mipmap, repeat_enable;
-uniform bool use_depth = true;
 uniform vec2 lane_dir = vec2(0.7071, -0.7071);
 uniform vec3 shallow : source_color = vec3(0.20, 0.52, 0.52);
 uniform vec3 deep : source_color = vec3(0.04, 0.24, 0.36);
 
 varying vec3 wpos;
+varying vec2 bed_uv;
 
 void vertex() {
 	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	bed_uv = VERTEX.xz / plane_size + 0.5;
 }
 
 void fragment() {
@@ -26,14 +33,15 @@ void fragment() {
 	NORMAL_MAP = normalize(n1 + n2 - 1.0) * 0.5 + 0.5;
 	NORMAL_MAP_DEPTH = 0.6;
 
-	float depth = 0.6;
-	if (use_depth) {
-		float raw = texture(DEPTH_TEXTURE, SCREEN_UV).r;
-		vec4 v = INV_PROJECTION_MATRIX * vec4(SCREEN_UV * 2.0 - 1.0, raw, 1.0);
-		v.xyz /= v.w;
-		// distanza lungo il raggio tra la superficie e il fondo, ridotta a profondità verticale approssimata
-		depth = max(0.0, (VERTEX.z - v.z)) * 0.75;
-	}
+#ifdef QUALITY_HIGH
+	float raw = texture(DEPTH_TEXTURE, SCREEN_UV).r;
+	vec4 v = INV_PROJECTION_MATRIX * vec4(SCREEN_UV * 2.0 - 1.0, raw, 1.0);
+	v.xyz /= v.w;
+	// distanza lungo il raggio tra la superficie e il fondo, ridotta a profondità verticale approssimata
+	float depth = max(0.0, (VERTEX.z - v.z)) * 0.75;
+#else
+	float depth = texture(bed_tex, bed_uv).r * bed_scale;
+#endif
 	float d = clamp(depth / 1.3, 0.0, 1.0);
 	vec3 col = mix(shallow, deep, smoothstep(0.0, 1.0, d));
 	// schiuma lungo la riva e attorno a ciò che emerge, spezzata dal rumore

@@ -60,3 +60,9 @@ Effetti a strati, code continue, bruciature (Decal), muro di fiamme, scintille d
 
 ## [2026-10-21] benchmark | Grafica v2: prestazioni da sistemare (lavoro sospeso)
 A parità di calore: precedente 66–72 FPS in Media, v2 ~48–56. Costi GPU: erba ~3 ms (alleggerita dopo la misura), normal map del terreno ~1.7, acqua ~1.4 (caustiche ora solo in Alta), rilievo ~0.9. Autotest OK, rete 5/5 OK. Prossimi passi in [[piano-grafica-v2]].
+
+## [2026-10-21] benchmark | A/B rinviato
+Ripresa del confronto A/B in Media: macchina in uno stato lento (versione precedente 47 FPS invece di 87) e misure con ±10 FPS di rumore; v2 circa −18%. Interrotto su richiesta dell'utente (le finestre del benchmark disturbano): si riprende a macchina libera e scarica. Vedi [[piano-grafica-v2]].
+
+## [2026-10-21] benchmark | Grafica v2: prestazioni alla pari
+Profilo dei costi GPU con interruttori temporanei (poi rimossi): alberi ~4 ms, acqua ~2, rilievo ~1.8. Terreno e vegetazione divisi in blocchi con culling, acqua con mappa del fondo invece del depth buffer (resta in Alta). Media: GPU 21.2 → ~15–16 ms, 50–56 FPS contro 54–55 della versione precedente nella stessa sessione. Autotest OK. Vedi [[piano-grafica-v2]], [[rendering-e-vfx]].

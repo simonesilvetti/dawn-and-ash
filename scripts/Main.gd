@@ -139,7 +139,7 @@ func _exit_tree() -> void:
 	MapBuilder._foliage_mats.clear()
 	MapBuilder._noise = null
 	MapBuilder._shader_cache.clear()
-	Terrain._mesh = null
+	Terrain._meshes.clear()
 	Terrain._noise = null
 	UnitView._ring_mats.clear()
 	UnitView._tint_cache.clear()

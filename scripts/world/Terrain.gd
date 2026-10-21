@@ -7,11 +7,13 @@ const RIVER_W := 5.0          # semilarghezza dell'acqua (uguale a ground.gdshad
 const WATER_Y := -0.16        # quota della superficie dell'acqua
 const FORD_DEPTH := 0.42      # profondità del guado nella corsia (le unità ci camminano dentro)
 const BED_DEPTH := 1.8        # profondità dell'alveo fuori dalla corsia
+const BED_SCALE := 2.0        # profondità massima codificata nella mappa del fondo dell'acqua
 const SIZE := 360.0           # lato della mesh del terreno
 const STEP := 1.5             # passo della griglia
+const CHUNK := 40             # quad per lato di ogni blocco della mesh (60 m)
 
 static var _noise: FastNoiseLite
-static var _mesh: ArrayMesh
+static var _meshes: Array[ArrayMesh] = []
 
 
 static func _hill_noise() -> FastNoiseLite:
@@ -62,10 +64,11 @@ static func height(p: Vector2) -> float:
 	return h
 
 
-## Mesh a griglia del terreno (calcolata una volta e riutilizzata tra menu e partite).
-static func mesh() -> ArrayMesh:
-	if _mesh:
-		return _mesh
+## Mesh a griglia del terreno divisa in blocchi CHUNK×CHUNK quad (calcolata una volta e riutilizzata tra menu e
+## partite): ogni blocco ha il suo AABB, così la GPU non disegna le parti fuori dall'inquadratura.
+static func meshes() -> Array[ArrayMesh]:
+	if not _meshes.is_empty():
+		return _meshes
 	var n := int(SIZE / STEP) + 1
 	var half := SIZE * 0.5
 	var hs := PackedFloat32Array()
@@ -73,36 +76,44 @@ static func mesh() -> ArrayMesh:
 	for j in n:
 		for i in n:
 			hs[j * n + i] = height(Vector2(-half + i * STEP, -half + j * STEP))
-	var verts := PackedVector3Array()
-	var nrms := PackedVector3Array()
-	verts.resize(n * n)
-	nrms.resize(n * n)
-	for j in n:
-		for i in n:
-			var h: float = hs[j * n + i]
-			verts[j * n + i] = Vector3(-half + i * STEP, h, -half + j * STEP)
-			var hl: float = hs[j * n + maxi(i - 1, 0)]
-			var hr: float = hs[j * n + mini(i + 1, n - 1)]
-			var hd: float = hs[maxi(j - 1, 0) * n + i]
-			var hu: float = hs[mini(j + 1, n - 1) * n + i]
-			nrms[j * n + i] = Vector3(hl - hr, 2.0 * STEP, hd - hu).normalized()
-	var idx := PackedInt32Array()
-	idx.resize((n - 1) * (n - 1) * 6)
-	var k := 0
-	for j in n - 1:
-		for i in n - 1:
-			var a := j * n + i
-			idx[k] = a; idx[k + 1] = a + 1; idx[k + 2] = a + n
-			idx[k + 3] = a + 1; idx[k + 4] = a + n + 1; idx[k + 5] = a + n
-			k += 6
-	var arr := []
-	arr.resize(Mesh.ARRAY_MAX)
-	arr[Mesh.ARRAY_VERTEX] = verts
-	arr[Mesh.ARRAY_NORMAL] = nrms
-	arr[Mesh.ARRAY_INDEX] = idx
-	_mesh = ArrayMesh.new()
-	_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
-	return _mesh
+	var q := n - 1
+	for cj in range(0, q, CHUNK):
+		for ci in range(0, q, CHUNK):
+			var w := mini(CHUNK, q - ci) + 1
+			var hgt := mini(CHUNK, q - cj) + 1
+			var verts := PackedVector3Array()
+			var nrms := PackedVector3Array()
+			verts.resize(w * hgt)
+			nrms.resize(w * hgt)
+			for y in hgt:
+				for x in w:
+					var i := ci + x
+					var j := cj + y
+					var h: float = hs[j * n + i]
+					verts[y * w + x] = Vector3(-half + i * STEP, h, -half + j * STEP)
+					var hl: float = hs[j * n + maxi(i - 1, 0)]
+					var hr: float = hs[j * n + mini(i + 1, n - 1)]
+					var hd: float = hs[maxi(j - 1, 0) * n + i]
+					var hu: float = hs[mini(j + 1, n - 1) * n + i]
+					nrms[y * w + x] = Vector3(hl - hr, 2.0 * STEP, hd - hu).normalized()
+			var idx := PackedInt32Array()
+			idx.resize((w - 1) * (hgt - 1) * 6)
+			var k := 0
+			for y in hgt - 1:
+				for x in w - 1:
+					var a := y * w + x
+					idx[k] = a; idx[k + 1] = a + 1; idx[k + 2] = a + w
+					idx[k + 3] = a + 1; idx[k + 4] = a + w + 1; idx[k + 5] = a + w
+					k += 6
+			var arr := []
+			arr.resize(Mesh.ARRAY_MAX)
+			arr[Mesh.ARRAY_VERTEX] = verts
+			arr[Mesh.ARRAY_NORMAL] = nrms
+			arr[Mesh.ARRAY_INDEX] = idx
+			var m := ArrayMesh.new()
+			m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+			_meshes.append(m)
+	return _meshes
 
 
 ## Superficie dell'acqua: un rettangolo piatto lungo il fiume; il terreno più alto la nasconde,
@@ -116,6 +127,16 @@ static func build_water(root: Node3D, quality: int, noise: Texture2D) -> MeshIns
 	var ld := MapData.lane_dir()
 	mi.rotation.y = -ld.angle() - PI * 0.5      # asse X del piano lungo il fiume
 	mi.position = Vector3(0.0, WATER_Y, 0.0)
+	# profondità del fondo sotto ogni punto del piano: evita di leggere il depth buffer (~2 ms di GPU in Media)
+	var bw := 512
+	var bh := 32
+	var img := Image.create(bw, bh, false, Image.FORMAT_L8)
+	for y in bh:
+		for x in bw:
+			var local := Vector3((x + 0.5) / bw - 0.5, 0.0, (y + 0.5) / bh - 0.5) * Vector3(pm.size.x, 0.0, pm.size.y)
+			var w := mi.transform * local
+			var d := clampf((WATER_Y - height(Vector2(w.x, w.z))) / BED_SCALE, 0.0, 1.0)
+			img.set_pixel(x, y, Color(d, d, d))
 	var mat := ShaderMaterial.new()
 	mat.shader = MapBuilder.shader_variant("res://scripts/world/water.gdshader", quality)
 	var nm := NoiseTexture2D.new()
@@ -130,7 +151,9 @@ static func build_water(root: Node3D, quality: int, noise: Texture2D) -> MeshIns
 	nm.noise = fn
 	mat.set_shader_parameter("normal_tex", nm)
 	mat.set_shader_parameter("noise_tex", noise)
-	mat.set_shader_parameter("use_depth", quality >= 1)
+	mat.set_shader_parameter("bed_tex", ImageTexture.create_from_image(img))
+	mat.set_shader_parameter("bed_scale", BED_SCALE)
+	mat.set_shader_parameter("plane_size", pm.size)
 	mat.set_shader_parameter("lane_dir", ld)
 	mi.material_override = mat
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
