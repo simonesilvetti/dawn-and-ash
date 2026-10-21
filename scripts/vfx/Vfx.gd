@@ -517,10 +517,14 @@ func effect(name: String, pos: Vector3, team: int) -> void:
 			_scorch(pos, 5.0, 12.0)
 			shake = maxf(shake, 0.6)
 		"ancient_destroyed":
+			# esplosioni scaglionate: più drammatiche e senza sovrapporsi fino a saturare al bianco
 			_group("big_blast", pos + Vector3(0, 6, 0))
-			_group("big_blast", pos + Vector3(3, 2, 2))
-			_group("big_blast", pos + Vector3(-3, 3, -2))
 			_group("debris", pos + Vector3(0, 3, 0))
+			for k in 2:
+				var off := Vector3(3, 2, 2) if k == 0 else Vector3(-3, 3, -2)
+				get_tree().create_timer(0.35 * (k + 1)).timeout.connect(func():
+					_group("big_blast", pos + off)
+					shake = maxf(shake, 0.6))
 			_ring(pos, Color(1.0, 0.6, 0.2, 1.0), 2.0, 20.0, 1.2, 0.1, 0.2)
 			_flash_light(pos + Vector3(0, 5, 0), Color(1.0, 0.7, 0.4), 16.0, 40.0, 1.5)
 			_scorch(pos, 9.0, 20.0)

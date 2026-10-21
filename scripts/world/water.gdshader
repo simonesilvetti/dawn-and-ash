@@ -48,12 +48,15 @@ void fragment() {
 	float d = clamp(depth / 1.3, 0.0, 1.0);
 	vec3 col = mix(shallow, deep, smoothstep(0.0, 1.0, d));
 
-	// scie della corrente: rumore stirato lungo il fiume che scorre (linee chiare sottili)
+	// scie della corrente: rumore stirato lungo il fiume che scorre (linee chiare sottili); non in qualità bassa
+	float streak = 0.0;
+#ifndef QUALITY_LOW
 	float across = dot(p, lane_dir);
 	float along = dot(p, river_dir);
 	float st = texture(noise_tex, vec2(along * 0.012 - TIME * 0.035, across * 0.16)).r;
-	float streak = smoothstep(0.6, 0.66, st) * (1.0 - smoothstep(0.66, 0.74, st));
+	streak = smoothstep(0.6, 0.66, st) * (1.0 - smoothstep(0.66, 0.74, st));
 	col += vec3(0.75, 0.9, 0.95) * streak * mix(0.22, 0.06, d);
+#endif
 
 	// schiuma lungo la riva e attorno a ciò che emerge, spezzata dal rumore: una linea piena e una fascia rotta
 	float nz = texture(noise_tex, p * 0.35 + flow * 0.05).r;
@@ -61,11 +64,13 @@ void fragment() {
 	float band = (1.0 - smoothstep(0.03, 0.12 + nz * 0.08, depth)) * smoothstep(0.52, 0.62, nz);
 	float foam = max(line * smoothstep(0.3, 0.45, nz + 0.12), band * 0.75);
 
+#ifndef QUALITY_LOW
 	// scintillii del sole: riflesso speculare finto con la normale perturbata (indipendente dalle luci)
 	vec3 nw = normalize(vec3(nt.x * 0.9, 1.0, nt.y * 0.9));
 	vec3 vw = normalize(CAMERA_POSITION_WORLD - wpos);
 	float spec = pow(max(dot(reflect(-normalize(glint_dir), nw), vw), 0.0), 160.0);
 	col += vec3(1.0, 0.95, 0.8) * smoothstep(0.7, 0.95, spec) * smoothstep(0.6, 0.75, nz) * 0.45;
+#endif
 
 #ifdef QUALITY_HIGH
 	// riflessi di luce sul fondo nell'acqua bassa (finte caustiche)
