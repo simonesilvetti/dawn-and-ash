@@ -164,3 +164,25 @@ GPU: Intel(R) Iris(R) Xe Graphics (ADL GT2) · risoluzione (1600, 900) · durata
 | Preset | FPS medio | 1% low | Frame max (ms) | Tick sim (µs) | Draw call | Unità | Memoria (MB) |
 |---|---|---|---|---|---|---|---|
 | Media | 101 | 62 | 20.9 | 990 | 349 | 52 | 167 |
+
+## 2026-10-21T23:41:22 notte: finale (grafica v2 rifinita)
+
+GPU: Intel(R) Iris(R) Xe Graphics (ADL GT2) · risoluzione (1600, 900) · durata 20 s per preset
+
+| Preset | FPS medio | 1% low | Frame max (ms) | Tick sim (µs) | Draw call | Unità | Memoria (MB) |
+|---|---|---|---|---|---|---|---|
+| Bassa | 133 | 73 | 19.6 | 1034 | 530 | 51 | 180 |
+| Media | 83 | 64 | 21.2 | 998 | 617 | 52 | 192 |
+| Alta | 44 | 35 | 30.4 | 1254 | 1546 | 52 | 204 |
+
+## 2026-10-21T23:42:09 notte: finale, base della Lega
+
+GPU: Intel(R) Iris(R) Xe Graphics (ADL GT2) · risoluzione (1600, 900) · durata 15 s per preset
+
+| Preset | FPS medio | 1% low | Frame max (ms) | Tick sim (µs) | Draw call | Unità | Memoria (MB) |
+|---|---|---|---|---|---|---|---|
+| Media | 80 | 38 | 35.7 | 1941 | 345 | 53 | 186 |
+
+> Nota (2026-10-21 notte): la misura "finale, base della Lega" è stata fatta con la CPU rallentata (tick sim ~1.9 ms
+> invece di ~1). A/B nelle stesse condizioni, base della Lega, Media, 15 s: commit di partenza `7089eca` 80 e 77 FPS
+> (GPU 9.5–9.6 ms), versione finale 74 e 74 FPS (GPU 9.8 ms). Differenza di GPU ~0.2 ms, nel rumore.

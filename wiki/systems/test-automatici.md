@@ -2,7 +2,7 @@
 title: Test automatici
 type: system
 tags: [test, verifica]
-updated: 2026-10-22
+updated: 2026-10-21
 sources: [scripts/debug/AutoTest.gd, tools/net_tests.sh]
 ---
 

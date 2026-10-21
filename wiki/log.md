@@ -66,3 +66,12 @@ Ripresa del confronto A/B in Media: macchina in uno stato lento (versione preced
 
 ## [2026-10-21] benchmark | Grafica v2: prestazioni alla pari
 Profilo dei costi GPU con interruttori temporanei (poi rimossi): alberi ~4 ms, acqua ~2, rilievo ~1.8. Terreno e vegetazione divisi in blocchi con culling, acqua con mappa del fondo invece del depth buffer (resta in Alta). Media: GPU 21.2 → ~15–16 ms, 50–56 FPS contro 54–55 della versione precedente nella stessa sessione. Autotest OK. Vedi [[piano-grafica-v2]], [[rendering-e-vfx]].
+
+## [2026-10-21] benchmark | Riferimento a macchina fresca
+Portatile alimentato, freddo, profilo "performance": Bassa 135/68, Media 87/63, Alta 46/41; base della Lega in Media 101/62. La v2 è nei limiti e sopra la versione finale precedente. Vedi [[benchmark]].
+
+## [2026-10-21] modifica | Rifinitura grafica (notte)
+Nuova modalità `--views` (inquadrature fisse, `--views-fx` per le abilità) per iterare in fretta. Acqua con scie, scintillii e schiuma a due fasce; increspature nel guado (`wake.gdshader`); alberi con tinta per istanza (il primo hash dava quasi sempre lo stesso valore); occlusione finta con uniforme globale `occ_tex`; sentiero senza righe di ripetizione, tracce e orlo; piazze vissute; braci nel Culto; cristalli a gemma; muro di fiamme e grandi esplosioni corretti. Provati AgX/ACES e fiamme opache: scartati. Vedi [[rendering-e-vfx]], [[piano-grafica-v2]].
+
+## [2026-10-21] test | Verifica finale della notte
+Autotest OK, rete 5/5 OK. Benchmark: Bassa 133/73, Media 83/64, Alta 44/35. Nella base la CPU era rallentata (tick 1.9 ms): A/B con `7089eca` nelle stesse condizioni alla pari (GPU +0.2 ms). Vedi [[benchmark]].

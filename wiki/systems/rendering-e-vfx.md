@@ -2,7 +2,7 @@
 title: Rendering ed effetti
 type: system
 tags: [grafica, vfx]
-updated: 2026-10-22
+updated: 2026-10-21
 sources: [scripts/world/MapBuilder.gd, scripts/world/foliage.gdshader, scripts/world/grass.gdshader, scripts/world/wake.gdshader, scripts/world/ground.gdshader, scripts/world/UnitView.gd, scripts/vfx/Vfx.gd, scripts/vfx/VfxLib.gd, scripts/vfx/fire.gdshader, scripts/vfx/tail.gdshader, scripts/vfx/puff.gdshader, scripts/world/Terrain.gd, scripts/world/water.gdshader, scripts/world/Scenery.gd]
 ---
 

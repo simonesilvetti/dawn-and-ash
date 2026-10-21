@@ -49,7 +49,7 @@ Annotato in `DECISIONS.md`. Vedi [[stile-grafico]].
 
 Limiti da rispettare in Media: FPS medio ≥ 60, 1% low ≥ 45, draw call < 1000.
 
-## Stato (2026-10-21, lavoro interrotto qui)
+## Stato (2026-10-21 pomeriggio)
 
 Fatto: fasi 1–4 (terreno, acqua, ambiente, effetti, HUD) e documentazione. Autotest OK, test di rete 5/5 OK,
 screenshot aggiornati in `screenshots/`.
@@ -69,14 +69,21 @@ alla pari con la versione precedente (54–55 nella stessa sessione). Erba, norm
 > [!warning] Oggi la macchina è più lenta che nelle misure del 2026-10-20: anche la versione precedente fa ~55 FPS in
 > Media invece di 87. I limiti assoluti (≥ 60 / 45) vanno ricontrollati con `--benchmark` sui tre preset.
 
+### Aggiornamento 2026-10-21 (notte): verifica e rifinitura
+A macchina fresca la v2 misura **Bassa 135/68, Media 87/63, Alta 46/41** (FPS medio / 1% low): limiti di Media
+rispettati, sopra la versione finale precedente. Con il margine sono stati aggiunti, misurando a ogni passo:
+acqua con scie della corrente, scintillii e schiuma a due fasce; increspature attorno alle unità nel guado; alberi con
+tinta variabile; **occlusione finta** sotto boschi, rocce ed edifici (fa anche da ombra degli alberi in Media); sentiero
+senza righe di ripetizione e con tracce consumate, orlo scuro tra erba e sentiero; piazze delle basi con terra battuta
+e muschio; crepe di brace nella terra bruciata del Culto; cristalli a gemma; muro di fiamme dell'onda d'urto rifatto;
+esplosioni grandi che non saturano al bianco; luce con ombre un po' più profonde. Dettagli in [[rendering-e-vfx]].
+Risultato finale: **Bassa 133/73, Media 83/64, Alta 44/35**. Costo GPU in Media ~+0.5 ms; A/B nella base alla pari
+entro il rumore. Vedi [[benchmark]].
+
 ### Prossimi passi
-1. ~~Confronto A/B~~ fatto (vedi sopra).
-2. Se Media resta sotto 60 FPS medi / 45 di 1% low: in Media terreno senza normal map (variante QUALITY_LOW),
-   erba ancora più rada o solo ai bordi della corsia, mesh del terreno con passo 2 m fuori dall'area visibile;
-   valutare risoluzione 3D al 90% con FSR in Media.
-3. Rifare `--benchmark` sui tre preset e `--bench-at -75,75`, aggiornare [[benchmark]].
-4. Secondo ciclo di revisione grafica: acqua del guado ancora un po' piatta; verificare la luce di contorno sui personaggi.
-5. Commit finale.
+1. ~~Confronto A/B~~, ~~benchmark dei tre preset~~, ~~secondo ciclo di revisione (acqua del guado, luce)~~: fatti.
+2. Possibili: Alta resta sui 45 FPS su questa GPU (pensata per GPU dedicate); fiamme delle esplosioni enormi
+   (distruzione dell'Antico) ancora molto chiare quando tre si sovrappongono.
 
 > [!note] Tentativo del 2026-10-21 (pomeriggio): misure inutilizzabili. Anche la versione precedente faceva ~47 FPS
 > in Media (contro 87 del giorno prima) e la stessa configurazione oscillava tra 40 e 50 FPS. Rapporto indicativo

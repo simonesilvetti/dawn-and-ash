@@ -2,7 +2,7 @@
 title: Risultati dei benchmark
 type: result
 tags: [benchmark, fps]
-updated: 2026-10-22
+updated: 2026-10-21
 sources: [benchmark_results.md]
 ---
 
@@ -24,9 +24,13 @@ Macchina: Intel Iris Xe (Alder Lake-UP4, 9 W), spesso a batteria.
 | Grafica v2, macchina fresca | Media | 87 | 63 | 23.5 ms |
 | Grafica v2, macchina fresca | Alta | 46 | 41 | 25.7 ms |
 | Grafica v2, base della Lega (`--bench-at -75,75`) | Media | 101 | 62 | 20.9 ms |
+| **Grafica v2 rifinita** (notte) | Bassa | 133 | 73 | 19.6 ms |
+| **Grafica v2 rifinita** | Media | 83 | 64 | 21.2 ms |
+| **Grafica v2 rifinita** | Alta | 44 | 35 | 30.4 ms |
 
 GPU in Media ~10.6 ms/frame (riferimento della notte). A portatile fresco, alimentato e in profilo "performance" la
 v2 è alla pari o sopra la versione finale precedente in tutti i preset: le misure lente del pomeriggio del 2026-10-21
-dipendevano dallo stato della macchina. Le righe successive della notte sono in fondo alla pagina.
+dipendevano dallo stato della macchina. Dopo la rifinitura della notte: GPU in Media ~11.1 ms
+(+0.5 ms). Nella base, con la CPU rallentata, A/B con il commit di partenza alla pari entro il rumore.
 
 Limiti (Media): FPS medio ≥ 60, 1% low ≥ 45, tick < 4 ms, draw call < 1000 → rispettati. L'**Alta** resta sui 40 FPS su questo chip: è pensata per GPU dedicate. Vedi [[prestazioni]].

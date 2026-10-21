@@ -141,6 +141,9 @@ void fragment() {
 		dirt = mix(dirt, dirt * vec3(0.78, 0.70, 0.62), track * 0.45 * smoothstep(0.3, 0.6, n3 + 0.2));
 		dirt = mix(dirt, dirt * vec3(0.62, 0.55, 0.55), ash * 0.55);
 		col = mix(col, dirt, w_dirt);
+		// orlo più scuro tra erba e sentiero (terra smossa, ombra dell'erba che sporge)
+		float rim = smoothstep(0.15, 0.45, w_dirt) * (1.0 - smoothstep(0.45, 0.8, w_dirt));
+		col *= 1.0 - rim * 0.22;
 #ifndef QUALITY_LOW
 		nm = mix(nm, texture(dirt_nrm, uv_d).rgb, w_dirt);
 #endif
