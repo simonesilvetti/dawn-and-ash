@@ -9,9 +9,13 @@ static var _mesh_cache: Dictionary = {}
 static var _noise: NoiseTexture2D
 static var _foliage_mats: Dictionary = {}
 static var _shader_cache: Dictionary = {}
+static var _occ: Image
+const SHADOW_DIR := Vector2(0.61, -0.79)   # direzione delle ombre sul piano x,z (opposta al sole)
+const OCC_RES := 256              # risoluzione della mappa di occlusione (Terrain.SIZE / OCC_RES ≈ 1.4 m per pixel)
 
 
 static func build(root: Node3D, quality: int) -> void:
+	_occ = Image.create(OCC_RES, OCC_RES, false, Image.FORMAT_L8)
 	_build_environment(root, quality)
 	_build_ground(root, quality)
 	Terrain.build_water(root, quality, noise_texture())
@@ -21,6 +25,34 @@ static func build(root: Node3D, quality: int) -> void:
 	_build_foliage(root, quality)
 	_build_props(root)
 	Scenery.build(root, quality)
+	_publish_occlusion()
+
+
+# --- Occlusione ambientale finta ------------------------------------------------
+# Mappa in scala di grigi del terreno scurita sotto alberi, edifici e rocce: il terreno e l'erba la leggono
+# (uniforme globale "occ_tex") e i boschi acquistano profondità anche senza ombre proiettate (costo: una texture).
+
+## Aggiunge una macchia d'ombra morbida di raggio r (metri) e intensità a (0..1) nel punto p.
+static func add_occluder(p: Vector2, r: float, a: float) -> void:
+	if _occ == null:
+		return
+	var k := OCC_RES / Terrain.SIZE
+	var c := (p + Vector2.ONE * Terrain.SIZE * 0.5) * k
+	var rp := r * k
+	for y in range(maxi(0, floori(c.y - rp)), mini(OCC_RES, ceili(c.y + rp) + 1)):
+		for x in range(maxi(0, floori(c.x - rp)), mini(OCC_RES, ceili(c.x + rp) + 1)):
+			var d := Vector2(x + 0.5, y + 0.5).distance_to(c) / maxf(rp, 0.001)
+			if d < 1.0:
+				var v := _occ.get_pixel(x, y).r
+				var add := a * (1.0 - d * d)
+				_occ.set_pixel(x, y, Color(minf(1.0, v + add * (1.0 - v)), 0, 0))
+
+
+static func _publish_occlusion() -> void:
+	var img := _occ.duplicate() as Image
+	img.resize(OCC_RES * 2, OCC_RES * 2, Image.INTERPOLATE_CUBIC)
+	var tex := ImageTexture.create_from_image(img)
+	RenderingServer.global_shader_parameter_set("occ_tex", tex)   # dichiarata in project.godot [shader_globals]
 
 
 # --- Ambiente e luci ---------------------------------------------------------
@@ -40,15 +72,15 @@ static func _build_environment(root: Node3D, quality: int) -> void:
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	env.ambient_light_energy = 0.75
-	env.ambient_light_sky_contribution = 0.65
-	env.ambient_light_color = Color(0.85, 0.82, 0.95)
+	env.ambient_light_energy = 0.68
+	env.ambient_light_sky_contribution = 0.55
+	env.ambient_light_color = Color(0.78, 0.82, 1.0)
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	env.tonemap_exposure = 1.05
+	env.tonemap_exposure = 1.08
 	env.tonemap_white = 6.0
 	env.adjustment_enabled = true
-	env.adjustment_saturation = 1.12
-	env.adjustment_contrast = 1.05
+	env.adjustment_saturation = 1.14
+	env.adjustment_contrast = 1.1
 	env.fog_enabled = true
 	env.fog_light_color = Color(0.85, 0.80, 0.72)
 	env.fog_density = 0.0016
@@ -68,8 +100,8 @@ static func _build_environment(root: Node3D, quality: int) -> void:
 	var sun := DirectionalLight3D.new()
 	sun.name = "Sun"
 	sun.rotation_degrees = Vector3(-52.0, -38.0, 0.0)
-	sun.light_color = Color(1.0, 0.92, 0.80)
-	sun.light_energy = 1.25
+	sun.light_color = Color(1.0, 0.90, 0.74)
+	sun.light_energy = 1.35
 	sun.shadow_enabled = true
 	sun.shadow_bias = 0.04
 	sun.shadow_normal_bias = 1.2
@@ -163,12 +195,15 @@ static func model_mesh(file: String) -> Mesh:
 
 
 ## Materiale dei modelli KayKit statici (atlante di colori condiviso) con una tinta, senza ondeggiamento.
-static func static_material(tint: Color, rock_detail: float = 0.0) -> ShaderMaterial:
-	var key := "static_%s_%.2f" % [tint.to_html(), rock_detail]
+## vary > 0 solo per oggetti fermi: la variazione dipende dalla posizione e cambierebbe durante il movimento.
+static func static_material(tint: Color, rock_detail: float = 0.0, vary: float = 0.0) -> ShaderMaterial:
+	var key := "static_%s_%.2f_%.2f" % [tint.to_html(), rock_detail, vary]
 	if _foliage_mats.has(key):
 		return _foliage_mats[key]
 	var mat := _foliage_material(tint).duplicate() as ShaderMaterial
 	mat.set_shader_parameter("sway", 0.0)
+	mat.set_shader_parameter("vary", vary)
+	mat.set_shader_parameter("base_ao", 0.0)
 	if rock_detail > 0.0:
 		mat.set_shader_parameter("detail_tex", _texture("rock_albedo"))
 		mat.set_shader_parameter("detail", rock_detail)
@@ -186,6 +221,8 @@ static func _foliage_material(tint: Color) -> ShaderMaterial:
 	mat.set_shader_parameter("tint", tint)
 	mat.set_shader_parameter("noise_tex", noise_texture())
 	mat.set_shader_parameter("clouds", true)
+	mat.set_shader_parameter("vary", 1.0)
+	mat.set_shader_parameter("base_ao", 3.0)
 	_foliage_mats[key] = mat
 	return mat
 
@@ -233,6 +270,7 @@ static func _build_foliage(root: Node3D, quality: int) -> void:
 		var list: Array = buckets.get(key, [])
 		list.append(Transform3D(basis, Vector3(p.x, Terrain.height(p) - 0.1, p.y)))
 		buckets[key] = list
+		add_occluder(p + SHADOW_DIR * s * 0.45, s * 1.25, 0.45)
 	# Montagne su un bordo quadrato, lontano dalle basi e dietro la telecamera a sud
 	var mountains := ["mountain_A_grass_trees", "mountain_B_grass_trees", "mountain_C_grass_trees", "hills_A_trees", "hills_B_trees"]
 	var edge := 146.0
@@ -268,6 +306,7 @@ static func _build_foliage(root: Node3D, quality: int) -> void:
 		var list: Array = buckets.get(key, [])
 		list.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s, s, s)), Vector3(p.x, Terrain.height(p) - 0.15, p.y)))
 		buckets[key] = list
+		add_occluder(p, s * 0.35, 0.35)
 
 	var folder := Node3D.new()
 	folder.name = "Foliage"
@@ -293,7 +332,7 @@ static func _build_foliage(root: Node3D, quality: int) -> void:
 			tint = Color(0.72, 0.55, 0.50) if not is_rock else Color(0.6, 0.55, 0.58)
 		var mat := _foliage_material(tint)
 		if is_rock or parts[0].begins_with("mountain") or parts[0].begins_with("hills"):
-			mat = static_material(tint, 0.85 if is_rock else 0.0)
+			mat = static_material(tint, 0.85 if is_rock else 0.0, 0.5)
 		mmi.material_override = mat
 		# Solo il bosco vicino proietta ombre (costo contenuto)
 		# ombre della vegetazione solo in qualità alta (costo elevato su GPU integrate)
@@ -370,6 +409,10 @@ static func _build_props(root: Node3D) -> void:
 	root.add_child(folder)
 	var colors := ["green", "red"]
 	for t in [0, 1]:
+		# ombra di contatto attorno agli edifici della simulazione (torri, Antico)
+		for bp in [MapData.T1[t], MapData.T2[t]]:
+			add_occluder(bp + SHADOW_DIR * 1.2, 4.5, 0.4)
+		add_occluder(MapData.ANCIENT[t] + SHADOW_DIR * 1.5, 8.0, 0.4)
 		var c: Vector2 = MapData.BASE_CENTER[t]
 		var dir := MapData.team_dir(t)
 		var nrm := MapData.lane_normal()

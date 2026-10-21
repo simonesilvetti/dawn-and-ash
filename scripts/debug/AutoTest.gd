@@ -5,6 +5,7 @@ extends Node
 ##   --autotest-net-host [--port P] [--duration S] [--expect-disconnect]
 ##   --autotest-net-client [--port P] [--duration S] [--netsim latency=..,jitter=..,loss=..]
 ##   --shots <cartella>             sequenza di screenshot (menu, partita, abilità, torre, negozio, animazioni, vittoria)
+##   --views <cartella> [--views-quality Q]  inquadrature fisse per la revisione grafica (guado, corsia, basi...)
 ##   --benchmark [--bench-seconds S] [--bench-preset Q] [--bench-at x,y] scenario di carico per ogni preset -> benchmark_results.md
 ##   --soak [--soak-minutes M]      partita lunga accelerata: memoria, nodi, creep incastrati, errori
 ## Vedi wiki/systems/test-automatici.md.
@@ -15,7 +16,7 @@ var _t0 := 0
 
 
 static func wants_autotest() -> bool:
-	for a in ["--autotest-training", "--autotest-net-host", "--autotest-net-client", "--shots", "--benchmark", "--soak"]:
+	for a in ["--autotest-training", "--autotest-net-host", "--autotest-net-client", "--shots", "--views", "--benchmark", "--soak"]:
 		if Game.has_arg(a):
 			return true
 	return false
@@ -36,6 +37,8 @@ func _ready() -> void:
 		_run_net_client.call_deferred()
 	elif Game.has_arg("--shots"):
 		_run_shots.call_deferred()
+	elif Game.has_arg("--views"):
+		_run_views.call_deferred()
 	elif Game.has_arg("--benchmark"):
 		_run_benchmark.call_deferred()
 	elif Game.has_arg("--soak"):
@@ -564,6 +567,34 @@ func _run_shots() -> void:
 	await _wait(1.0)
 	await _shot(dir, "10_vittoria")
 	_finish("SHOTS")
+
+
+## Inquadrature fisse per la revisione grafica, senza scenario di gioco (pochi secondi): guado con creep,
+## corsia, riva fuori dalla corsia, basi, vista d'insieme. --views-quality Q sceglie il preset.
+func _run_views() -> void:
+	_use_fixed_viewport(Vector2i(1600, 900))
+	var dir := Game.arg_value("--views", "res://screenshots/views")
+	DirAccess.make_dir_recursive_absolute(dir if dir.is_absolute_path() else ProjectSettings.globalize_path(dir))
+	if Game.has_arg("--views-quality"):
+		Game.settings.quality = int(Game.arg_value("--views-quality", "1"))
+	var w: World = main.start_training()
+	await _wait(1.0)
+	w.sim._spawn_wave()
+	for u in w.sim.unit_list:
+		if u.is_creep():
+			u.pos = MapData.closest_on_lane(u.pos).lerp(Vector2.ZERO, 0.9) + MapData.lane_normal() * u.lane_offset * 2.0
+			u.prev_pos = u.pos
+	var hu := w.local_hero_unit()
+	hu.pos = Vector2(-6, 6)
+	hu.prev_pos = hu.pos
+	var views := [["guado", Vector2(0, 0), 24.0], ["corsia", Vector2(-40, 40), 26.0], ["riva", Vector2(18, 22), 26.0],
+		["base_lega", MapData.ANCIENT[0] + Vector2(6, -6), 30.0], ["base_culto", MapData.ANCIENT[1] + Vector2(-8, 8), 34.0],
+		["torre_culto", MapData.T1[1], 26.0], ["insieme", Vector2(0, 0), 60.0]]
+	for v in views:
+		_focus(w, v[1], v[2])
+		await _wait(0.6)
+		await _shot(dir, v[0])
+	_finish("VIEWS")
 
 
 # ============================================================================

@@ -6,6 +6,7 @@ render_mode diffuse_burley, cull_disabled, specular_disabled;
 uniform float sway = 0.12;
 uniform sampler2D noise_tex : filter_linear_mipmap, repeat_enable;
 uniform bool clouds = true;
+global uniform sampler2D occ_tex;   // vedi ground.gdshader
 
 varying vec3 tint;
 varying vec2 wpos;
@@ -19,6 +20,7 @@ void vertex() {
 	VERTEX.z += w * sway * 0.6 * h * h;
 	// COLOR = colore del vertice × colore dell'istanza (MultiMesh.use_colors)
 	tint = COLOR.a < 0.5 ? INSTANCE_CUSTOM.rgb : COLOR.rgb;
+	tint *= 1.0 - textureLod(occ_tex, origin.xz / 360.0 + 0.5, 0.0).r * 0.5;
 	// normali "verso l'alto": l'erba si illumina come il terreno sotto (niente lati scuri)
 	NORMAL = normalize(mix(NORMAL, vec3(0.0, 1.0, 0.0), 0.7));
 }

@@ -39,6 +39,8 @@ uniform vec2 base_d = vec2(77.0, -77.0);
 uniform float base_rad = 26.0;
 uniform float river_w = 5.0;
 uniform bool clouds = true;
+// occlusione finta sotto alberi, edifici e rocce (MapBuilder.add_occluder), sul quadrato di lato Terrain.SIZE = 360 m
+global uniform sampler2D occ_tex;
 
 varying vec3 wpos;
 varying vec3 wnrm;
@@ -155,7 +157,7 @@ void fragment() {
 		vec2 uv_b = p * 0.35;
 		vec3 peb = texture(pebbles_tex, uv_b).rgb * vec3(0.85, 0.82, 0.74);
 		// sotto il livello dell'acqua i ciottoli sono bagnati e più scuri
-		peb *= mix(1.0, 0.55, smoothstep(-0.05, -0.4, wpos.y));
+		peb *= mix(vec3(1.0), vec3(0.62, 0.72, 0.66), smoothstep(-0.05, -0.4, wpos.y));
 		col = mix(col, peb, w_bed);
 #ifndef QUALITY_LOW
 		nm = mix(nm, texture(pebbles_nrm, uv_b).rgb, w_bed);
@@ -177,6 +179,9 @@ void fragment() {
 	col *= 0.88 + n1 * 0.24;
 	// l'alveo incassato riceve meno luce
 	col *= 1.0 + max(wpos.y, -1.8) * 0.12 * step(wpos.y, 0.0);
+
+	float occ = texture(occ_tex, p / 360.0 + 0.5).r;
+	col *= 1.0 - occ * 0.7;
 
 	if (clouds) {
 		float cl = texture(noise_tex, p * 0.0035 + TIME * vec2(0.004, 0.0025)).r;

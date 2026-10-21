@@ -243,6 +243,9 @@ static func _place(folder: Node3D, file: String, p: Vector2, s: float, rot: floa
 		return null
 	if team == 1:
 		_darken(n)
+	if file.begins_with("building"):
+		var sz := _model_aabb(file).size * s
+		MapBuilder.add_occluder(p + MapBuilder.SHADOW_DIR * 1.0, maxf(sz.x, sz.z) * 0.75, 0.4)
 	# ombre solo per edifici e mura; i piccoli oggetti di scena le proiettano solo in qualità alta
 	if _quality < 2 and not file.begins_with("building") and not file.begins_with("wall"):
 		for mi in n.find_children("*", "MeshInstance3D", true, false):

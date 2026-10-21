@@ -268,18 +268,27 @@ func _build_building(subtype: String, quality: int) -> void:
 	# Cristallo fluttuante sopra torri e Antico
 	if subtype != "fountain":
 		crystal = Node3D.new()
-		var cm := MeshInstance3D.new()
-		var pm := PrismMesh.new()
+		# gemma a bipiramide esagonale: punta alta e slanciata sopra, corta sotto
 		var big := subtype == "ancient"
-		pm.size = Vector3(0.6, 0.9, 0.6) * (1.9 if big else 1.0)
-		cm.mesh = pm
-		cm.material_override = crystal_material(team)
-		cm.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		var cm2 := cm.duplicate() as MeshInstance3D
-		cm2.rotation_degrees.x = 180.0
-		cm2.position.y = -pm.size.y
-		crystal.add_child(cm)
-		crystal.add_child(cm2)
+		var k := 1.9 if big else 1.0
+		for part in 2:
+			var cm := MeshInstance3D.new()
+			var cyl := CylinderMesh.new()
+			cyl.top_radius = 0.0
+			cyl.bottom_radius = 0.36 * k
+			cyl.height = (0.95 if part == 0 else 0.45) * k
+			cyl.radial_segments = 6
+			cyl.rings = 1
+			cyl.cap_bottom = false
+			cm.mesh = cyl
+			cm.material_override = crystal_material(team)
+			cm.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			if part == 0:
+				cm.position.y = cyl.height * 0.5
+			else:
+				cm.rotation_degrees.x = 180.0
+				cm.position.y = -cyl.height * 0.5
+			crystal.add_child(cm)
 		crystal.position.y = height - (0.4 if not big else -1.0)
 		add_child(crystal)
 		if quality >= 1 or big:
@@ -358,12 +367,16 @@ static func crystal_material(t: int) -> StandardMaterial3D:
 		return _tint_cache[key]
 	var c: Color = Game.TEAM_COLORS[t]
 	var m := StandardMaterial3D.new()
-	m.albedo_color = c.lightened(0.2)
+	m.albedo_color = c.lightened(0.35)
 	m.emission_enabled = true
 	m.emission = c
-	m.emission_energy_multiplier = 1.3
-	m.roughness = 0.2
-	m.metallic = 0.3
+	m.emission_energy_multiplier = 1.1
+	m.roughness = 0.15
+	m.metallic = 0.4
+	# bordo luminoso
+	m.rim_enabled = true
+	m.rim = 1.0
+	m.rim_tint = 0.2
 	_tint_cache[key] = m
 	return m
 
