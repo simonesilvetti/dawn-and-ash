@@ -204,6 +204,17 @@ void fragment() {
 		col *= mix(1.0, 0.8, smoothstep(0.52, 0.72, cl));
 	}
 	ALBEDO = col;
+	// crepe di brace nella terra bruciata del Culto, fuori dalla corsia e dalle basi (pulsano lentamente)
+	float glow_zone = smoothstep(0.6, 0.95, ash) * smoothstep(0.45, 0.65, n2) * (1.0 - w_dirt) * (1.0 - w_pave) * (1.0 - w_bed) * (1.0 - w_rock);
+	if (glow_zone > 0.02) {
+		float nc = texture(noise_tex, p * 0.045 + vec2(0.71, 0.29)).r;
+		float dc = abs(nc - 0.5);
+		float core_c = 1.0 - smoothstep(0.0, 0.008 + n3 * 0.006, dc);
+		float char_c = 1.0 - smoothstep(0.01, 0.045, dc);
+		float pulse = 0.7 + 0.3 * sin(TIME * 1.3 + n1 * 12.0);
+		ALBEDO = mix(ALBEDO, vec3(0.08, 0.05, 0.05), char_c * glow_zone * 0.75);
+		EMISSION = vec3(1.0, 0.22, 0.04) * core_c * glow_zone * pulse * 2.2;
+	}
 #ifndef QUALITY_LOW
 	NORMAL_MAP = nm;
 	NORMAL_MAP_DEPTH = 1.0;

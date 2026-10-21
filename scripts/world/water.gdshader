@@ -53,7 +53,7 @@ void fragment() {
 	float along = dot(p, river_dir);
 	float st = texture(noise_tex, vec2(along * 0.012 - TIME * 0.035, across * 0.16)).r;
 	float streak = smoothstep(0.6, 0.66, st) * (1.0 - smoothstep(0.66, 0.74, st));
-	col += vec3(0.75, 0.9, 0.95) * streak * mix(0.22, 0.10, d);
+	col += vec3(0.75, 0.9, 0.95) * streak * mix(0.22, 0.06, d);
 
 	// schiuma lungo la riva e attorno a ciò che emerge, spezzata dal rumore: una linea piena e una fascia rotta
 	float nz = texture(noise_tex, p * 0.35 + flow * 0.05).r;
@@ -65,7 +65,7 @@ void fragment() {
 	vec3 nw = normalize(vec3(nt.x * 0.9, 1.0, nt.y * 0.9));
 	vec3 vw = normalize(CAMERA_POSITION_WORLD - wpos);
 	float spec = pow(max(dot(reflect(-normalize(glint_dir), nw), vw), 0.0), 160.0);
-	col += vec3(1.0, 0.95, 0.8) * smoothstep(0.55, 0.9, spec) * smoothstep(0.5, 0.7, nz) * 0.6;
+	col += vec3(1.0, 0.95, 0.8) * smoothstep(0.7, 0.95, spec) * smoothstep(0.6, 0.75, nz) * 0.45;
 
 #ifdef QUALITY_HIGH
 	// riflessi di luce sul fondo nell'acqua bassa (finte caustiche)

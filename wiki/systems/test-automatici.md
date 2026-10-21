@@ -2,7 +2,7 @@
 title: Test automatici
 type: system
 tags: [test, verifica]
-updated: 2026-10-21
+updated: 2026-10-22
 sources: [scripts/debug/AutoTest.gd, tools/net_tests.sh]
 ---
 
@@ -15,6 +15,7 @@ Argomenti dopo `--` (vedi intestazione di `AutoTest.gd`):
 | `godot --headless -- --autotest-training` | edifici, protezioni, acquisti, abilità (Q, E, W, R), last hit, XP, livelli, oro, torri, deny, assedio, morte/rinascita, vittoria, audio → `AUTOTEST OK` |
 | `./tools/net_tests.sh [s]` | host+client locali con 0, 80, 150+jitter 30+3%, 250+5% ms; poi client terminato a forza → `[OK]` ×5 |
 | `godot -- --shots res://screenshots` | 10 screenshot + sequenze di animazione in un SubViewport 1600×900 |
+| `godot -- --views <cartella> [--views-quality Q] [--views-fx]` | 7 inquadrature fisse (guado, corsia, riva, basi, torre, insieme) in ~6 s, per la revisione grafica; con `--views-fx` fotogrammi ravvicinati di onda d'urto, palla di fuoco, scatto e meteora |
 | `godot -- --benchmark [--bench-preset N]` | scenario di carico per preset, picchi, profilo → `benchmark_results.md` |
 | `godot --headless -- --soak --soak-minutes 30` | memoria, nodi, creep incastrati, tick massimo |
 | `godot --headless -- --sim-smoke` | simulazione pura senza scena |

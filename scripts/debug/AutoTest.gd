@@ -589,7 +589,7 @@ func _run_views() -> void:
 	hu.prev_pos = hu.pos
 	var views := [["guado", Vector2(0, 0), 24.0], ["corsia", Vector2(-40, 40), 26.0], ["riva", Vector2(18, 22), 26.0],
 		["base_lega", MapData.ANCIENT[0] + Vector2(6, -6), 30.0], ["base_culto", MapData.ANCIENT[1] + Vector2(-8, 8), 34.0],
-		["torre_culto", MapData.T1[1], 26.0], ["insieme", Vector2(0, 0), 60.0]]
+		["torre_culto", MapData.T1[1], 26.0], ["corsia_culto", Vector2(42, -42), 26.0], ["insieme", Vector2(0, 0), 60.0]]
 	if Game.has_arg("--views-fx"):
 		views = []
 	for v in views:
