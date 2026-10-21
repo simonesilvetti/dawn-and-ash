@@ -63,6 +63,8 @@ var cur_anim := ""
 var lock_t: float = 0.0             # durata residua di un'animazione "one shot" (attacco/lancio)
 var facing: float = 0.0
 var vis_pos := Vector3.ZERO
+var wake: MeshInstance3D            # increspature nell'acqua del guado (creata alla prima immersione)
+static var _wake_mat: ShaderMaterial
 var crystal: Node3D                 # cristallo luminoso degli edifici
 var light: OmniLight3D
 var shield: MeshInstance3D          # scudo trasparente degli edifici invulnerabili
@@ -524,6 +526,7 @@ func update_visual(delta: float, p: Vector3, f: float, moving: bool, speed: floa
 	if building_model != null:
 		_update_building(delta, invulnerable)
 		return
+	_update_wake(p, moving)
 	if dead:
 		death_t += delta
 		# dopo l'animazione di morte il corpo sprofonda nel terreno
@@ -544,6 +547,30 @@ func update_visual(delta: float, p: Vector3, f: float, moving: bool, speed: floa
 		play(cfg.move, 0.12, clampf(speed / ref, 0.7, 1.7))
 	else:
 		play(cfg.idle, 0.18, 1.0)
+
+
+## Mostra le increspature quando l'unità (viva) ha i piedi sotto il pelo dell'acqua.
+func _update_wake(p: Vector3, moving: bool) -> void:
+	var wet := not dead and p.y < Terrain.WATER_Y - 0.05
+	if not wet:
+		if wake:
+			wake.visible = false
+		return
+	if wake == null:
+		if _wake_mat == null:
+			_wake_mat = ShaderMaterial.new()
+			_wake_mat.shader = load("res://scripts/world/wake.gdshader")
+		wake = MeshInstance3D.new()
+		var q := QuadMesh.new()
+		q.size = Vector2(3.2, 3.2)
+		q.orientation = PlaneMesh.FACE_Y
+		wake.mesh = q
+		wake.material_override = _wake_mat
+		wake.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(wake)
+	wake.visible = true
+	wake.position.y = Terrain.WATER_Y - p.y + 0.02
+	wake.set_instance_shader_parameter("strength", 1.0 if moving else 0.45)
 
 
 func _update_building(delta: float, invulnerable: bool) -> void:

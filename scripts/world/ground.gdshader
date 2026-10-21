@@ -127,8 +127,18 @@ void fragment() {
 	// --- sentiero della corsia ---
 	if (w_dirt > 0.001) {
 		vec2 uv_d = p * 0.17;
-		vec3 dirt = tex2(dirt_tex, uv_d, n2) * vec3(0.95, 0.80, 0.62);
+		vec3 dirt = texture(dirt_tex, uv_d).rgb;
+#ifndef QUALITY_LOW
+		// secondo campione ruotato e a scala diversa: rompe le righe della ripetizione
+		vec2 uv_r = mat2(vec2(0.766, 0.643), vec2(-0.643, 0.766)) * p * 0.11 + vec2(0.29, 0.53);
+		dirt = mix(dirt, texture(dirt_tex, uv_r).rgb, smoothstep(0.3, 0.7, n2 * 0.6 + n3 * 0.4));
+#endif
+		dirt *= vec3(0.95, 0.80, 0.62);
 		dirt = mix(dirt, dirt * vec3(0.82, 0.74, 0.66), rut * 0.6);
+		// tracce consumate parallele alla corsia (carri e passi), ondulate dal rumore
+		float side = dot(p - lane_a, vec2(-lane_dir.y, lane_dir.x)) + (n2 - 0.5) * 3.0;
+		float track = smoothstep(0.9, 0.2, abs(abs(side) - 4.5)) + smoothstep(0.7, 0.15, abs(abs(side) - 9.0)) * 0.6;
+		dirt = mix(dirt, dirt * vec3(0.78, 0.70, 0.62), track * 0.45 * smoothstep(0.3, 0.6, n3 + 0.2));
 		dirt = mix(dirt, dirt * vec3(0.62, 0.55, 0.55), ash * 0.55);
 		col = mix(col, dirt, w_dirt);
 #ifndef QUALITY_LOW
@@ -141,6 +151,12 @@ void fragment() {
 		vec2 uv_p = p * 0.25;
 		vec3 pave = texture(paving_tex, uv_p).rgb;
 		pave = mix(pave * vec3(1.12, 1.08, 0.96), pave * vec3(0.48, 0.40, 0.44), w_pave_d / max(w_pave, 0.001));
+		// lastricato vissuto: chiazze di terra battuta, muschio verso il bordo (Lega) e macchie di fuliggine (Culto)
+		float edge_p = smoothstep(base_rad - 14.0, base_rad - 5.0, min(dr, dd));
+		float worn = smoothstep(0.55, 0.75, n2 * 0.7 + n3 * 0.3);
+		pave = mix(pave, pave * vec3(0.86, 0.74, 0.58), worn * 0.55);
+		float moss = smoothstep(0.45, 0.7, n3 * 0.5 + n2 * 0.5 + edge_p * 0.35) * edge_p;
+		pave = mix(pave, pave * mix(vec3(0.62, 0.82, 0.42), vec3(0.45, 0.38, 0.4), w_pave_d / max(w_pave, 0.001)), moss * 0.6);
 		col = mix(col, pave, w_pave);
 #ifndef QUALITY_LOW
 		nm = mix(nm, texture(paving_nrm, uv_p).rgb, w_pave);

@@ -590,10 +590,28 @@ func _run_views() -> void:
 	var views := [["guado", Vector2(0, 0), 24.0], ["corsia", Vector2(-40, 40), 26.0], ["riva", Vector2(18, 22), 26.0],
 		["base_lega", MapData.ANCIENT[0] + Vector2(6, -6), 30.0], ["base_culto", MapData.ANCIENT[1] + Vector2(-8, 8), 34.0],
 		["torre_culto", MapData.T1[1], 26.0], ["insieme", Vector2(0, 0), 60.0]]
+	if Game.has_arg("--views-fx"):
+		views = []
 	for v in views:
 		_focus(w, v[1], v[2])
 		await _wait(0.6)
 		await _shot(dir, v[0])
+	# --views-fx: fotogrammi ravvicinati delle abilità (onda d'urto, palla di fuoco, scatto, meteora)
+	if Game.has_arg("--views-fx"):
+		w.send_command(["cheat", "invulnerable"])
+		w.local_hero_data().ability_levels = [4, 4, 4, 3]
+		_focus(w, hu.pos, 20.0)
+		await _wait(0.5)
+		var casts := [["onda", 2, Vector2.ZERO], ["palla", 0, Vector2(10, -8)], ["scatto", 1, Vector2(4, -6)], ["meteora", 3, Vector2(6, -2)]]
+		for c in casts:
+			w.send_command(["cheat", "cooldowns"])
+			var tgt: Vector2 = hu.pos + c[2]
+			w.send_command(["cast", c[1], tgt.x, tgt.y, 0])
+			for i in (5 if c[1] != 3 else 10):
+				_focus(w, hu.pos.lerp(tgt, 0.5), 20.0)
+				await _wait(0.12 if c[1] != 3 else 0.15)
+				await _shot(dir, "fx_%s_%d" % [c[0], i])
+			await _wait(1.0)
 	_finish("VIEWS")
 
 

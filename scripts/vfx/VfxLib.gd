@@ -242,7 +242,9 @@ static func _emitter(amount: int, lifetime: float, mesh: Mesh) -> GPUParticles3D
 static func make_blast(c: Color, s: float, smoke: bool, sparks: bool) -> Node3D:
 	var root := Node3D.new()
 	# lampo iniziale
-	var flash := _emitter(1, 0.22, _puff_quad(3.2 * s, true, Color(1, 0.95, 0.8), 3.0))
+	# le esplosioni grandi sovrappongono molte particelle additive: intensità ridotta per non saturare al bianco
+	var k := pow(clampf(s, 1.0, 3.0), 1.2)
+	var flash := _emitter(1, 0.22, _puff_quad(3.2 * s, true, Color(1, 0.95, 0.8), 3.0 / k))
 	var fm := ParticleProcessMaterial.new()
 	fm.gravity = Vector3.ZERO
 	fm.scale_curve = _curve([Vector2(0, 0.4), Vector2(0.3, 1.0), Vector2(1, 1.2)])
@@ -250,7 +252,7 @@ static func make_blast(c: Color, s: float, smoke: bool, sparks: bool) -> Node3D:
 	flash.process_material = fm
 	root.add_child(flash)
 	# fuoco
-	var fire := _emitter(int(22 * clampf(s, 1.0, 2.5)), 0.75, _puff_quad(1.5 * s, true, Color(1, 1, 1), 2.2))
+	var fire := _emitter(int(22 * clampf(s, 1.0, 2.5)), 0.75, _puff_quad(1.5 * s, true, Color(1, 1, 1), 2.2 / k))
 	var m := ParticleProcessMaterial.new()
 	m.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
 	m.emission_sphere_radius = 0.35 * s
@@ -266,7 +268,8 @@ static func make_blast(c: Color, s: float, smoke: bool, sparks: bool) -> Node3D:
 	m.scale_min = 0.6
 	m.scale_max = 1.3
 	m.scale_curve = _curve([Vector2(0, 0.5), Vector2(0.25, 1.0), Vector2(1, 1.25)])
-	m.color_ramp = _ramp([Color(1, 0.95, 0.8, 1), Color(c.r, c.g, c.b, 1), c.darkened(0.5), Color(0.25, 0.1, 0.05, 0)])
+	var hot := Color(1, 0.95, 0.8, 1) if s < 1.5 else Color(1, 0.78, 0.42, 1)
+	m.color_ramp = _ramp([hot, Color(c.r, c.g, c.b, 1), c.darkened(0.5), Color(0.25, 0.1, 0.05, 0)])
 	fire.process_material = m
 	root.add_child(fire)
 	if smoke:
