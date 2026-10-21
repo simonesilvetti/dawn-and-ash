@@ -49,7 +49,34 @@ for n in trees_A_large trees_A_medium trees_A_small trees_B_large trees_B_medium
 	gltf "decoration/nature/$n"
 done
 for n in barrel crate_A_big crate_B_small tent weaponrack sack resource_stone; do gltf "decoration/props/$n"; done
-for n in building_bridge_A building_destroyed fence_stone_straight wall_straight; do gltf "buildings/neutral/$n"; done
+for n in building_bridge_A building_bridge_B building_destroyed building_scaffolding building_grain fence_stone_straight \
+		fence_wood_straight wall_straight wall_straight_gate wall_corner_A_outside; do gltf "buildings/neutral/$n"; done
+# villaggi delle basi (Grafica v2)
+for t in green red; do
+	for b in blacksmith church home_A home_B market windmill lumbermill tavern tower_catapult; do gltf "buildings/$t/building_${b}_$t"; done
+done
+for n in bucket_arrows crate_long_A crate_open resource_lumber wheelbarrow pallet target crate_A_small crate_B_big; do gltf "decoration/props/$n"; done
+for n in hills_A hills_B hill_single_B mountain_A_grass waterplant_C trees_A_cut trees_B_cut; do gltf "decoration/nature/$n"; done
+
+echo "== Texture del terreno (ambientCG, CC0) -> solo Color e NormalGL a 1K"
+T=assets/textures
+acg() { # id nome
+	[[ -s "$T/$2_albedo.jpg" ]] && return 0
+	mkdir -p "$T"
+	local tmp; tmp="$(mktemp -d)"
+	curl -fsSL --retry 3 -o "$tmp/t.zip" "https://ambientcg.com/get?file=$1_1K-JPG.zip"
+	unzip -qo "$tmp/t.zip" -d "$tmp/x"
+	cp "$(find "$tmp/x" -name "*_Color.jpg" | head -1)" "$T/$2_albedo.jpg"
+	cp "$(find "$tmp/x" -name "*_NormalGL.jpg" | head -1)" "$T/$2_normal.jpg"
+	rm -rf "$tmp"
+	echo "  scaricato $T/$2 ($1)"
+}
+acg Grass004 grass
+acg Ground081 dirt
+acg PavingStones070 paving
+acg Rock051 rock
+acg Ground103 soil
+acg Gravel041 pebbles
 
 echo "== Musica (OpenGameArt, CC0) -> ogg"
 M=assets/music

@@ -138,12 +138,22 @@ func _exit_tree() -> void:
 	MapBuilder._mesh_cache.clear()
 	MapBuilder._foliage_mats.clear()
 	MapBuilder._noise = null
+	MapBuilder._shader_cache.clear()
+	Terrain._mesh = null
+	Terrain._noise = null
 	UnitView._ring_mats.clear()
 	UnitView._tint_cache.clear()
 	UnitView._anim_configured.clear()
 	UnitView._flash_mat = null
 	UnitView._ring_mesh = null
 	UiKit._theme = null
+	UiPanel._white = null
+	UiPanel._shader = null
+	IconRect._shader = null
+	Minimap._bg_cache = null
+	Scenery._meshes.clear()
+	Scenery._grass_mat = null
+	Scenery._bush_mat = null
 
 
 # --- Test rapido della simulazione (senza grafica) ---------------------------------------

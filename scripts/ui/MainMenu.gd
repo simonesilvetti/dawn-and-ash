@@ -39,7 +39,7 @@ func _ready() -> void:
 	var sub := UiKit.label("Le Terre di Aethra", 26, Color(1.0, 0.7, 0.45))
 	sub.position = Vector2(66, 130)
 	add_child(sub)
-	_card = PanelContainer.new()
+	_card = UiPanel.new(14)
 	_card.position = Vector2(60, 200)
 	_card.custom_minimum_size = Vector2(440, 0)
 	add_child(_card)

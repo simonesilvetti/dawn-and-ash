@@ -5,7 +5,7 @@ extends Node
 ##   --autotest-net-host [--port P] [--duration S] [--expect-disconnect]
 ##   --autotest-net-client [--port P] [--duration S] [--netsim latency=..,jitter=..,loss=..]
 ##   --shots <cartella>             sequenza di screenshot (menu, partita, abilità, torre, negozio, animazioni, vittoria)
-##   --benchmark [--bench-seconds S] scenario di carico per ogni preset di qualità -> benchmark_results.md
+##   --benchmark [--bench-seconds S] [--bench-preset Q] [--bench-at x,y] scenario di carico per ogni preset -> benchmark_results.md
 ##   --soak [--soak-minutes M]      partita lunga accelerata: memoria, nodi, creep incastrati, errori
 ## Vedi wiki/systems/test-automatici.md.
 
@@ -595,7 +595,12 @@ func _run_benchmark() -> void:
 		var hu := w.local_hero_unit()
 		hu.pos = Vector2(-6, 6)
 		hu.prev_pos = hu.pos
-		_focus(w, Vector2.ZERO, 32.0)
+		# --bench-at x,y: inquadra un altro punto (es. una base) invece del centro
+		var at := Vector2.ZERO
+		if Game.has_arg("--bench-at"):
+			var xy := Game.arg_value("--bench-at", "0,0").split(",")
+			at = Vector2(float(xy[0]), float(xy[1]))
+		_focus(w, at, 32.0)
 		await _wait(2.0)
 		Game.prof_enabled = true
 		Game.prof.clear()
@@ -609,6 +614,11 @@ func _run_benchmark() -> void:
 		var next_cast := 0
 		var mem0 := Performance.get_monitor(Performance.MEMORY_STATIC)
 		var spikes: Array = []
+		# tempi di rendering misurati dal driver (GPU) e dalla CPU di rendering, per capire chi limita
+		var vp_rid := _svp.get_viewport_rid()
+		RenderingServer.viewport_set_measure_render_time(vp_rid, true)
+		var gpu_sum := 0.0
+		var cpu_sum := 0.0
 		while Time.get_ticks_msec() < end:
 			var units_before := w.views.size()
 			var tick_before := w.sim.tick_n
@@ -622,8 +632,10 @@ func _run_benchmark() -> void:
 			ticks.append(w.sim.last_tick_usec)
 			calls += int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))
 			proc_sum += Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
+			gpu_sum += RenderingServer.viewport_get_measured_render_time_gpu(vp_rid)
+			cpu_sum += RenderingServer.viewport_get_measured_render_time_cpu(vp_rid)
 			calls_n += 1
-			_focus(w, Vector2.ZERO, 32.0)
+			_focus(w, at, 32.0)
 			if Time.get_ticks_msec() > next_cast and not Game.has_arg("--bench-nocast"):
 				next_cast = Time.get_ticks_msec() + 700
 				w.send_command(["cheat", "cooldowns"])
@@ -662,6 +674,7 @@ func _run_benchmark() -> void:
 			else:
 				pr += " %s=%.2f" % [k, Game.prof[k][0] / 1000.0 / maxf(1, calls_n)]
 		print(pr)
+		print("  rendering: GPU %.2f ms/frame, CPU di rendering %.2f ms/frame, logica %.2f ms/frame" % [gpu_sum / maxf(1, calls_n), cpu_sum / maxf(1, calls_n), proc_sum / maxf(1, calls_n)])
 		Game.prof_enabled = false
 		print("  BENCH %s: FPS medio %.0f, 1%% low %.0f, frame max %.1f ms, tick sim %.0f us, draw call %.0f, unità %d" % [r.q, r.fps, r.low, r.max_ms, r.tick_us, r.calls, units])
 	_write_benchmark(results, secs)

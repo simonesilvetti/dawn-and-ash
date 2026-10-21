@@ -2,7 +2,7 @@
 title: Decisioni prese in autonomia
 type: concept
 tags: [decisioni]
-updated: 2026-10-20
+updated: 2026-10-21
 sources: [DECISIONS.md]
 ---
 
@@ -17,3 +17,4 @@ L'elenco completo e motivato è in `DECISIONS.md` (radice del progetto). Le più
 - Kael senza cappello per leggibilità dall'alto. → [[kael]]
 - Barre della vita e numeri disegnati in un unico overlay 2D. → [[interfaccia]]
 - Benchmark in un SubViewport 1600×900 a dimensione fissa (Hyprland ridimensiona le finestre). → [[test-automatici]]
+- **Grafica v2** (2026-10-21): stile "stilizzato con texture" (texture CC0 ambientCG sul terreno, modelli KayKit invariati), rilievo solo visivo, basi fortificate, HUD a shader con ritratto 3D. Vedi [[piano-grafica-v2]].

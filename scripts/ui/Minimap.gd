@@ -5,12 +5,13 @@ extends Control
 
 var world: World
 var _bg: ImageTexture
+static var _bg_cache: ImageTexture
 const WORLD_HALF := 130.0
 
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
-	_bg = _make_background(160)
+	_bg = _make_background(216)
 
 
 func _to_map(p: Vector2) -> Vector2:
@@ -21,27 +22,49 @@ func _to_world(m: Vector2) -> Vector2:
 	return (m / size - Vector2(0.5, 0.5)) * WORLD_HALF * 2.0
 
 
-func _make_background(res: int) -> ImageTexture:
+## Sfondo dipinto a partire dal terreno vero (Terrain): colori delle zone, rilievo ombreggiato, boschi, fiume, mura.
+static func _make_background(res: int) -> ImageTexture:
+	if _bg_cache:
+		return _bg_cache
 	var img := Image.create(res, res, false, Image.FORMAT_RGBA8)
 	var ld := MapData.lane_dir()
-	var rn := MapData.lane_normal()
+	var fn := FastNoiseLite.new()
+	fn.frequency = 0.08
+	var px := WORLD_HALF * 2.0 / res
 	for y in res:
 		for x in res:
 			var p := (Vector2(x + 0.5, y + 0.5) / res - Vector2(0.5, 0.5)) * WORLD_HALF * 2.0
 			var along := p.dot(ld)
-			var c := Color(0.22, 0.38, 0.16).lerp(Color(0.28, 0.22, 0.2), clampf((along - 10.0) / 50.0, 0.0, 1.0))
+			var ash := clampf((along - 10.0) / 50.0, 0.0, 1.0)
+			var c := Color(0.25, 0.42, 0.17).lerp(Color(0.3, 0.23, 0.2), ash)
+			var out := Terrain.walk_out(p)
+			# boschi: macchie più scure fuori dall'area percorribile
+			if out > 5.0 and not Scenery.in_village(p) and fn.get_noise_2dv(p) > -0.25:
+				c = c.darkened(0.35 + fn.get_noise_2dv(p * 2.0) * 0.1)
 			if MapData.is_walkable(p, 0.0):
-				c = Color(0.55, 0.45, 0.32)
+				c = Color(0.62, 0.5, 0.34).lerp(Color(0.42, 0.33, 0.3), ash * 0.6)
 			for t in 2:
-				if p.distance_to(MapData.BASE_CENTER[t]) < Game.BASE_RADIUS - 4.0:
-					c = Color(0.62, 0.6, 0.55) if t == 0 else Color(0.32, 0.27, 0.3)
-			var rpos := p.dot(rn)
-			if absf(along + sin(rpos * 0.045) * 6.0 + sin(rpos * 0.13) * 1.5) < 4.0:
-				c = Color(0.2, 0.5, 0.65)
+				var bd := p.distance_to(MapData.BASE_CENTER[t])
+				if bd < Game.BASE_RADIUS - 4.0:
+					c = Color(0.7, 0.68, 0.6) if t == 0 else Color(0.36, 0.3, 0.34)
+				if absf(bd - (Game.BASE_RADIUS + 2.5)) < 1.2 and out > 0.0:
+					c = Color(0.35, 0.33, 0.3) if t == 0 else Color(0.2, 0.17, 0.19)
+			var rd := Terrain.river_dist(p)
+			if rd < Terrain.RIVER_W:
+				c = Color(0.16, 0.45, 0.6).lerp(Color(0.3, 0.62, 0.7), 1.0 - rd / Terrain.RIVER_W)
+			elif rd < Terrain.RIVER_W + 1.5:
+				c = c.lerp(Color(0.55, 0.52, 0.45), 0.5)
+			# rilievo ombreggiato (luce da nord-ovest)
+			var h := Terrain.height(p)
+			var hx := Terrain.height(p + Vector2(px, 0))
+			var hy := Terrain.height(p + Vector2(0, px))
+			var shade := clampf(1.0 + ((h - hx) + (h - hy)) * 0.45, 0.65, 1.3)
+			c = Color(c.r * shade, c.g * shade, c.b * shade)
 			if maxf(absf(p.x), absf(p.y)) > WORLD_HALF - 8.0:
 				c = c.darkened(0.4)
 			img.set_pixel(x, y, c)
-	return ImageTexture.create_from_image(img)
+	_bg_cache = ImageTexture.create_from_image(img)
+	return _bg_cache
 
 
 var _redraw_t := 0.0

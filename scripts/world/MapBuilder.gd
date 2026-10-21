@@ -8,16 +8,19 @@ const ENV := "res://assets/models/env/"
 static var _mesh_cache: Dictionary = {}
 static var _noise: NoiseTexture2D
 static var _foliage_mats: Dictionary = {}
+static var _shader_cache: Dictionary = {}
 
 
 static func build(root: Node3D, quality: int) -> void:
 	_build_environment(root, quality)
-	_build_ground(root)
+	_build_ground(root, quality)
+	Terrain.build_water(root, quality, noise_texture())
 	if quality < 1:
 		var g: MeshInstance3D = root.get_node("Ground")
 		(g.material_override as ShaderMaterial).set_shader_parameter("clouds", false)
 	_build_foliage(root, quality)
 	_build_props(root)
+	Scenery.build(root, quality)
 
 
 # --- Ambiente e luci ---------------------------------------------------------
@@ -93,15 +96,35 @@ static func noise_texture() -> NoiseTexture2D:
 	return _noise
 
 
-static func _build_ground(root: Node3D) -> void:
+## Shader con le define della qualità inserite dopo "shader_type" (varianti compilate a parte).
+static func shader_variant(path: String, quality: int) -> Shader:
+	var key := "%s#%d" % [path, quality]
+	if _shader_cache.has(key):
+		return _shader_cache[key]
+	var src := (load(path) as Shader).code
+	var def: String = ["#define QUALITY_LOW", "", "#define QUALITY_HIGH"][clampi(quality, 0, 2)]
+	var sh := Shader.new()
+	sh.code = src.replace("shader_type spatial;", "shader_type spatial;\n" + def) if def != "" else src
+	_shader_cache[key] = sh
+	return sh
+
+
+static func _texture(name: String) -> Texture2D:
+	return load("res://assets/textures/%s.jpg" % name)
+
+
+static func _build_ground(root: Node3D, quality: int) -> void:
 	var mi := MeshInstance3D.new()
 	mi.name = "Ground"
-	var pm := PlaneMesh.new()
-	pm.size = Vector2(380.0, 380.0)
-	mi.mesh = pm
+	mi.mesh = Terrain.mesh()
 	var mat := ShaderMaterial.new()
-	mat.shader = load("res://scripts/world/ground.gdshader")
+	mat.shader = shader_variant("res://scripts/world/ground.gdshader", quality)
 	mat.set_shader_parameter("noise_tex", noise_texture())
+	for t in ["grass", "dirt", "paving", "rock", "pebbles", "soil"]:
+		mat.set_shader_parameter(t + "_tex", _texture(t + "_albedo"))
+		if t != "rock":
+			mat.set_shader_parameter(t + "_nrm", _texture(t + "_normal"))
+	mat.set_shader_parameter("river_w", Terrain.RIVER_W)
 	mat.set_shader_parameter("lane_a", Game.LANE_A)
 	mat.set_shader_parameter("lane_b", Game.LANE_B)
 	mat.set_shader_parameter("lane_w", Game.LANE_HALF_WIDTH)
@@ -129,6 +152,20 @@ static func model_mesh(file: String) -> Mesh:
 		n.free()
 	_mesh_cache[file] = mesh
 	return mesh
+
+
+## Materiale dei modelli KayKit statici (atlante di colori condiviso) con una tinta, senza ondeggiamento.
+static func static_material(tint: Color, rock_detail: float = 0.0) -> ShaderMaterial:
+	var key := "static_%s_%.2f" % [tint.to_html(), rock_detail]
+	if _foliage_mats.has(key):
+		return _foliage_mats[key]
+	var mat := _foliage_material(tint).duplicate() as ShaderMaterial
+	mat.set_shader_parameter("sway", 0.0)
+	if rock_detail > 0.0:
+		mat.set_shader_parameter("detail_tex", _texture("rock_albedo"))
+		mat.set_shader_parameter("detail", rock_detail)
+	_foliage_mats[key] = mat
+	return mat
 
 
 static func _foliage_material(tint: Color) -> ShaderMaterial:
@@ -159,7 +196,7 @@ static func _build_foliage(root: Node3D, quality: int) -> void:
 	for i in attempts:
 		var p := Vector2(rng.randf_range(-limit, limit), rng.randf_range(-limit, limit))
 		# fuori dall'area percorribile con un margine (la vegetazione fa da "muro")
-		if MapData.is_walkable(p, -4.0):
+		if MapData.is_walkable(p, -4.0) or Terrain.river_dist(p) < Terrain.RIVER_W + 4.0 or Scenery.in_village(p):
 			continue
 		var c := Vector2i(floori(p.x / cell), floori(p.y / cell))
 		var ok := true
@@ -186,7 +223,7 @@ static func _build_foliage(root: Node3D, quality: int) -> void:
 		var s := rng.randf_range(4.2, 5.6)
 		var basis := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s, s * rng.randf_range(0.9, 1.15), s))
 		var list: Array = buckets.get(key, [])
-		list.append(Transform3D(basis, Vector3(p.x, 0.0, p.y)))
+		list.append(Transform3D(basis, Vector3(p.x, Terrain.height(p) - 0.1, p.y)))
 		buckets[key] = list
 	# Montagne su un bordo quadrato, lontano dalle basi e dietro la telecamera a sud
 	var mountains := ["mountain_A_grass_trees", "mountain_B_grass_trees", "mountain_C_grass_trees", "hills_A_trees", "hills_B_trees"]
@@ -207,7 +244,7 @@ static func _build_foliage(root: Node3D, quality: int) -> void:
 			var sc := rng.randf_range(11.0, 16.0)
 			var key: String = tt + ("|ash" if ash else "")
 			var list: Array = buckets.get(key, [])
-			list.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(sc, sc * rng.randf_range(0.8, 1.3), sc)), Vector3(p.x, -0.3, p.y)))
+			list.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(sc, sc * rng.randf_range(0.8, 1.3), sc)), Vector3(p.x, Terrain.height(p) - 0.3, p.y)))
 			buckets[key] = list
 	# Rocce lungo i bordi della corsia
 	for i in int(260 * density):
@@ -221,7 +258,7 @@ static func _build_foliage(root: Node3D, quality: int) -> void:
 		var s := rng.randf_range(4.0, 9.0)
 		var key: String = rt + ("|ash" if p.dot(MapData.lane_dir()) > 25.0 else "")
 		var list: Array = buckets.get(key, [])
-		list.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s, s, s)), Vector3(p.x, -0.05, p.y)))
+		list.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s, s, s)), Vector3(p.x, Terrain.height(p) - 0.15, p.y)))
 		buckets[key] = list
 
 	var folder := Node3D.new()
@@ -248,8 +285,7 @@ static func _build_foliage(root: Node3D, quality: int) -> void:
 			tint = Color(0.72, 0.55, 0.50) if not is_rock else Color(0.6, 0.55, 0.58)
 		var mat := _foliage_material(tint)
 		if is_rock or parts[0].begins_with("mountain") or parts[0].begins_with("hills"):
-			mat = mat.duplicate()
-			mat.set_shader_parameter("sway", 0.0)
+			mat = static_material(tint, 0.85 if is_rock else 0.0)
 		mmi.material_override = mat
 		# Solo il bosco vicino proietta ombre (costo contenuto)
 		# ombre della vegetazione solo in qualità alta (costo elevato su GPU integrate)
@@ -260,7 +296,7 @@ static func _build_foliage(root: Node3D, quality: int) -> void:
 
 # --- Decorazioni ---------------------------------------------------------------
 
-static func _place(root: Node3D, file: String, p: Vector2, s: float, rot: float, y: float = 0.0) -> Node3D:
+static func place(root: Node3D, file: String, p: Vector2, s: float, rot: float, y: float = 0.0) -> Node3D:
 	var ps: PackedScene = load(ENV + file)
 	if ps == null:
 		return null
@@ -331,19 +367,19 @@ static func _build_props(root: Node3D) -> void:
 		var nrm := MapData.lane_normal()
 		var face := -dir.angle() + PI * 0.5
 		# caserme e tiro con l'arco ai lati della base
-		_place(folder, "building_barracks_%s.gltf" % colors[t], c + nrm * 17.0 - dir * 4.0, 4.0, face)
-		_place(folder, "building_archeryrange_%s.gltf" % colors[t], c - nrm * 17.0 - dir * 4.0, 3.6, face)
+		place(folder, "building_barracks_%s.gltf" % colors[t], c + nrm * 17.0 - dir * 4.0, 4.0, face)
+		place(folder, "building_archeryrange_%s.gltf" % colors[t], c - nrm * 17.0 - dir * 4.0, 3.6, face)
 		# stendardi lungo l'ingresso della base
 		for k in [-1, 1]:
 			for j in 3:
-				_place(folder, "flag_%s.gltf" % colors[t], c + dir * (8.0 + j * 5.0) + nrm * k * 12.0, 5.0, face)
+				place(folder, "flag_%s.gltf" % colors[t], c + dir * (8.0 + j * 5.0) + nrm * k * 12.0, 5.0, face)
 		# tende, barili, casse
-		_place(folder, "tent.gltf", c + nrm * 11.0 - dir * 14.0, 4.5, face + 0.4)
-		_place(folder, "tent.gltf", c - nrm * 11.0 - dir * 14.0, 4.5, face - 0.4)
-		_place(folder, "barrel.gltf", c + nrm * 14.0 + dir * 2.0, 5.0, 0.3)
-		_place(folder, "barrel.gltf", c + nrm * 15.0 + dir * 3.0, 5.0, 1.2)
-		_place(folder, "crate_A_big.gltf", c - nrm * 14.0 + dir * 2.0, 5.0, 0.5)
-		_place(folder, "weaponrack.gltf", c - nrm * 15.5 + dir * 0.0, 5.0, face)
+		place(folder, "tent.gltf", c + nrm * 11.0 - dir * 14.0, 4.5, face + 0.4)
+		place(folder, "tent.gltf", c - nrm * 11.0 - dir * 14.0, 4.5, face - 0.4)
+		place(folder, "barrel.gltf", c + nrm * 14.0 + dir * 2.0, 5.0, 0.3)
+		place(folder, "barrel.gltf", c + nrm * 15.0 + dir * 3.0, 5.0, 1.2)
+		place(folder, "crate_A_big.gltf", c - nrm * 14.0 + dir * 2.0, 5.0, 0.5)
+		place(folder, "weaponrack.gltf", c - nrm * 15.5 + dir * 0.0, 5.0, face)
 	# ninfee e piante nel fiume
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 99
@@ -356,4 +392,4 @@ static func _build_props(root: Node3D) -> void:
 		if p.distance_to(MapData.closest_on_lane(p)) < Game.LANE_HALF_WIDTH:
 			continue
 		var f: String = ["waterlily_A.gltf", "waterlily_B.gltf", "waterplant_A.gltf", "waterplant_B.gltf"][rng.randi_range(0, 3)]
-		_place(folder, f, p, rng.randf_range(4.0, 6.0), rng.randf() * TAU, 0.02)
+		place(folder, f, p, rng.randf_range(4.0, 6.0), rng.randf() * TAU, Terrain.WATER_Y + 0.02)

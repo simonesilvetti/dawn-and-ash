@@ -69,3 +69,20 @@ Tutti implementati e attivi (interruttori `ENABLE_*` in `scripts/autoload/Game.g
 rafforzamento dei creep ogni 5 minuti, deny, 4 oggetti extra e vendita, crossfade della musica, hit-stop, scossa della
 telecamera, ombre delle nuvole, particelle ambientali, monete volanti, rallentamento finale, tabella punteggio,
 opzioni di allenamento, menu con mappa in orbita.
+
+## Grafica v2 (2026-10-21, su richiesta dell'utente)
+L'utente ha giudicato la grafica "troppo minimale" e ha chiesto più dettaglio con Dota 2 come riferimento, mantenendo
+la giocabilità, e un HUD migliore. Piano e dettagli: `wiki/concepts/piano-grafica-v2.md`.
+- **Stile**: da "low-poly a colori pieni con texture minime" (prompt) a **"stilizzato con texture"**. I modelli restano
+  KayKit; il terreno usa texture fotografiche CC0 di **ambientCG** (nuova fonte di asset, solo texture), tinte e
+  saturate per stare vicino alla palette cartoon. Ai sassi KayKit si sovrappone il dettaglio della texture di roccia.
+- **Rilievo solo visivo** (`Terrain.gd`): la simulazione resta sul piano, quindi rete, IA e test non cambiano.
+  Le unità nel guado scendono di quota solo nella grafica.
+- **Acqua**: un rettangolo piatto nascosto dal terreno più alto (la riva nasce dal test di profondità), invece di una
+  mesh che segue il fiume.
+- **Basi fortificate**: mura KayKit ad anello (MultiMesh) appena fuori dall'area percorribile, con varco verso la
+  corsia; villaggio dietro le mura su terreno spianato. La pietra del Culto è scurita con una tinta (stesso atlante).
+- **HUD**: pannelli disegnati da uno shader (`UiPanel`) invece di StyleBoxFlat; icone procedurali a shader; ritratto
+  3D del vero modello (risolve il ritratto disegnato che non somigliava a Kael); negozio sopra il pannello.
+- **Import delle texture**: compressione VRAM + mipmap obbligatorie (senza, il preset Media perdeva un terzo degli FPS).
+- **Preset Media**: erba al 30%, ombre dei piccoli oggetti di scena disattivate, niente filtro anisotropico sul terreno.

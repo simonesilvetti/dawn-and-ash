@@ -16,7 +16,9 @@ var _mana_text: Label
 var _abilities: Array[AbilityButton] = []
 var _items: Array[AbilityButton] = []
 var _gold_label: Label
-var _stats_label: Label
+var _stat_labels: Dictionary = {}
+var _portrait: _Portrait3D
+var _portrait_over: _PortraitOver
 var _clock_label: Label
 var _score_label: Label
 var _wave_label: Label
@@ -27,6 +29,7 @@ var _tooltip_label: RichTextLabel
 var _shop: PanelContainer
 var _shop_hint: Label
 var _shop_buttons: Dictionary = {}
+var _shop_gold: Label
 var _pause: PanelContainer
 var _score: PanelContainer
 var _score_text: RichTextLabel
@@ -124,60 +127,81 @@ func _bar(col: Color, h: float) -> ProgressBar:
 	b.show_percentage = false
 	b.custom_minimum_size = Vector2(0, h)
 	var bg := StyleBoxFlat.new()
-	bg.bg_color = Color(0.03, 0.03, 0.04, 0.95)
+	bg.bg_color = Color(0.02, 0.02, 0.03, 0.95)
 	bg.set_corner_radius_all(3)
-	bg.border_color = Color(0, 0, 0)
+	bg.border_color = Color(0.3, 0.24, 0.15)
 	bg.set_border_width_all(1)
-	var fg := StyleBoxFlat.new()
-	fg.bg_color = col
-	fg.set_corner_radius_all(3)
+	var fg := StyleBoxTexture.new()
+	fg.texture = _bar_texture(col)
+	fg.texture_margin_left = 2
+	fg.texture_margin_right = 2
 	b.add_theme_stylebox_override("background", bg)
 	b.add_theme_stylebox_override("fill", fg)
 	b.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return b
 
 
+## Riempimento delle barre con un gradiente verticale (riflesso in alto, ombra in basso).
+static func _bar_texture(col: Color) -> GradientTexture2D:
+	var g := Gradient.new()
+	g.offsets = PackedFloat32Array([0.0, 0.35, 0.65, 1.0])
+	g.colors = PackedColorArray([col.lightened(0.45), col.lightened(0.1), col, col.darkened(0.45)])
+	var t := GradientTexture2D.new()
+	t.gradient = g
+	t.fill_from = Vector2(0, 0)
+	t.fill_to = Vector2(0, 1)
+	t.width = 4
+	t.height = 32
+	return t
+
+
 func _build_bottom_panel() -> void:
-	var panel := PanelContainer.new()
+	var panel := UiPanel.new(10)
 	panel.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
 	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	panel.offset_left = -430
-	panel.offset_right = 430
-	panel.offset_top = -170
-	panel.offset_bottom = -8
+	panel.offset_left = -372
+	panel.offset_right = 372
+	panel.offset_top = -152
+	panel.offset_bottom = -6
 	add_child(panel)
 	_ui_blockers.append(panel)
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 14)
+	row.add_theme_constant_override("separation", 12)
 	panel.add_child(row)
 
-	# Ritratto
+	# Ritratto 3D del vero modello dell'eroe, con livello e barra dell'esperienza
 	var portrait := VBoxContainer.new()
-	portrait.custom_minimum_size = Vector2(130, 0)
+	portrait.add_theme_constant_override("separation", 3)
 	row.add_child(portrait)
-	var face := _PortraitFace.new()
-	face.custom_minimum_size = Vector2(130, 92)
-	face.hud = self
-	portrait.add_child(face)
-	_portrait_name = UiKit.label("Kael", 15, UiKit.GOLD_BRIGHT, HORIZONTAL_ALIGNMENT_CENTER)
-	portrait.add_child(_portrait_name)
-	_xp_bar = _bar(Color(0.75, 0.55, 0.95), 8)
+	var pwrap := Control.new()
+	pwrap.custom_minimum_size = Vector2(104, 98)
+	pwrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	portrait.add_child(pwrap)
+	_portrait = _Portrait3D.new()
+	_portrait.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	pwrap.add_child(_portrait)
+	_portrait_over = _PortraitOver.new()
+	_portrait_over.hud = self
+	_portrait_over.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_portrait_over.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	pwrap.add_child(_portrait_over)
+	_xp_bar = _bar(Color(0.68, 0.45, 0.95), 7)
 	portrait.add_child(_xp_bar)
-	_portrait_level = UiKit.label("Livello 1", 13, UiKit.TEXT, HORIZONTAL_ALIGNMENT_CENTER)
-	portrait.add_child(_portrait_level)
+	_portrait_name = UiKit.label("Kael", 12, UiKit.GOLD_BRIGHT, HORIZONTAL_ALIGNMENT_CENTER)
+	portrait.add_child(_portrait_name)
 
 	# Abilità + barre
 	var center := VBoxContainer.new()
-	center.custom_minimum_size = Vector2(360, 0)
-	center.add_theme_constant_override("separation", 6)
+	center.custom_minimum_size = Vector2(296, 0)
+	center.add_theme_constant_override("separation", 4)
 	row.add_child(center)
 	var spacer := Control.new()
-	spacer.custom_minimum_size = Vector2(0, 18)
+	spacer.custom_minimum_size = Vector2(0, 16)
 	center.add_child(spacer)
 	var abil := HBoxContainer.new()
 	abil.alignment = BoxContainer.ALIGNMENT_CENTER
-	abil.add_theme_constant_override("separation", 14)
+	abil.add_theme_constant_override("separation", 12)
 	center.add_child(abil)
 	for i in 4:
 		var ab: Dictionary = Game.ABILITIES[i]
@@ -194,81 +218,184 @@ func _build_bottom_panel() -> void:
 		abil.add_child(b)
 		_abilities.append(b)
 	var spacer2 := Control.new()
-	spacer2.custom_minimum_size = Vector2(0, 6)
+	spacer2.custom_minimum_size = Vector2(0, 14)
 	center.add_child(spacer2)
 	var hp_wrap := Control.new()
-	hp_wrap.custom_minimum_size = Vector2(0, 20)
+	hp_wrap.custom_minimum_size = Vector2(0, 19)
 	center.add_child(hp_wrap)
-	_hp_bar = _bar(Color(0.25, 0.75, 0.25), 20)
+	_hp_bar = _bar(Color(0.22, 0.72, 0.22), 19)
 	_hp_bar.set_anchors_preset(Control.PRESET_FULL_RECT)
 	hp_wrap.add_child(_hp_bar)
 	_hp_text = UiKit.label("", 14, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER)
 	_hp_text.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_hp_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	hp_wrap.add_child(_hp_text)
 	var mana_wrap := Control.new()
-	mana_wrap.custom_minimum_size = Vector2(0, 16)
+	mana_wrap.custom_minimum_size = Vector2(0, 15)
 	center.add_child(mana_wrap)
-	_mana_bar = _bar(Color(0.25, 0.45, 0.95), 16)
+	_mana_bar = _bar(Color(0.22, 0.42, 0.95), 15)
 	_mana_bar.set_anchors_preset(Control.PRESET_FULL_RECT)
 	mana_wrap.add_child(_mana_bar)
 	_mana_text = UiKit.label("", 12, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER)
 	_mana_text.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_mana_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	mana_wrap.add_child(_mana_text)
 
-	# Oggetti + oro + statistiche
+	# Oggetti + oro
 	var right := VBoxContainer.new()
-	right.add_theme_constant_override("separation", 6)
+	right.add_theme_constant_override("separation", 5)
 	row.add_child(right)
 	var grid := GridContainer.new()
 	grid.columns = 3
-	grid.add_theme_constant_override("h_separation", 6)
-	grid.add_theme_constant_override("v_separation", 6)
+	grid.add_theme_constant_override("h_separation", 5)
+	grid.add_theme_constant_override("v_separation", 5)
 	right.add_child(grid)
 	for i in 6:
 		var b := AbilityButton.new()
 		b.index = i
 		b.is_item = true
 		b.key_text = str(i + 1)
-		b.custom_minimum_size = Vector2(48, 40)
+		b.custom_minimum_size = Vector2(50, 38)
 		b.activated.connect(func(idx): _item_clicked(idx))
 		b.mouse_entered.connect(func(): _show_item_tooltip(i, b))
 		b.mouse_exited.connect(func(): _tooltip.visible = false)
 		grid.add_child(b)
 		_items.append(b)
-	_gold_label = UiKit.label("0", 20, Color(1.0, 0.84, 0.25))
-	right.add_child(_gold_label)
-	_stats_label = UiKit.label("", 12, UiKit.TEXT_DIM)
-	right.add_child(_stats_label)
+	var gold_row := HBoxContainer.new()
+	gold_row.add_theme_constant_override("separation", 6)
+	right.add_child(gold_row)
+	var coin := _StatIcon.new()
+	coin.kind = "gold"
+	coin.custom_minimum_size = Vector2(18, 22)
+	gold_row.add_child(coin)
+	_gold_label = UiKit.label("0", 19, Color(1.0, 0.84, 0.25))
+	gold_row.add_child(_gold_label)
+
+	# Statistiche con icone
+	var stats := VBoxContainer.new()
+	stats.add_theme_constant_override("separation", 2)
+	stats.custom_minimum_size = Vector2(92, 0)
+	row.add_child(stats)
+	var sp := Control.new()
+	sp.custom_minimum_size = Vector2(0, 8)
+	stats.add_child(sp)
+	for k in ["damage", "armor", "speed"]:
+		var h := HBoxContainer.new()
+		h.add_theme_constant_override("separation", 6)
+		stats.add_child(h)
+		var ic := _StatIcon.new()
+		ic.kind = k
+		ic.custom_minimum_size = Vector2(18, 22)
+		h.add_child(ic)
+		var l := UiKit.label("", 15, UiKit.TEXT)
+		h.add_child(l)
+		_stat_labels[k] = l
+	var lvl := UiKit.label("", 13, UiKit.TEXT_DIM)
+	stats.add_child(lvl)
+	_portrait_level = lvl
 
 
-class _PortraitFace extends Control:
-	var hud: Hud
+## Piccole icone delle statistiche e dell'oro.
+class _StatIcon extends Control:
+	var kind := ""
+	func _draw() -> void:
+		var c := size * 0.5
+		match kind:
+			"damage":
+				draw_line(c + Vector2(-6, 6), c + Vector2(6, -6), Color(0.85, 0.88, 0.95), 3.0)
+				draw_line(c + Vector2(-6, 1), c + Vector2(-1, 6), UiKit.GOLD, 2.5)
+			"armor":
+				var pts := PackedVector2Array([c + Vector2(-6, -6), c + Vector2(6, -6), c + Vector2(5, 2), c + Vector2(0, 8), c + Vector2(-5, 2)])
+				draw_colored_polygon(pts, Color(0.55, 0.4, 0.25))
+				draw_polyline(pts + PackedVector2Array([pts[0]]), UiKit.GOLD, 1.5)
+			"speed":
+				draw_rect(Rect2(c + Vector2(-4, -7), Vector2(5, 10)), Color(0.6, 0.4, 0.22))
+				draw_rect(Rect2(c + Vector2(-4, 2), Vector2(10, 5)), Color(0.6, 0.4, 0.22))
+				draw_line(c + Vector2(-9, -3), c + Vector2(-5, -3), Color(0.6, 0.9, 1.0), 1.5)
+				draw_line(c + Vector2(-9, 1), c + Vector2(-5, 1), Color(0.6, 0.9, 1.0), 1.5)
+			"gold":
+				draw_circle(c, 8, Color(0.55, 0.38, 0.05))
+				draw_circle(c, 6.5, Color(1.0, 0.82, 0.25))
+				draw_circle(c - Vector2(2, 2), 2.2, Color(1, 0.97, 0.75))
+
+
+## Ritratto: il modello vero dell'eroe (UnitView) in un piccolo mondo 3D separato, con l'animazione di riposo.
+class _Portrait3D extends SubViewportContainer:
+	var _vp: SubViewport
+	var _view: UnitView
+	var _frame := 0
+
+	func _ready() -> void:
+		stretch = true
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_vp = SubViewport.new()
+		_vp.own_world_3d = true
+		_vp.transparent_bg = false
+		_vp.msaa_3d = Viewport.MSAA_2X
+		_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+		add_child(_vp)
+		var env := Environment.new()
+		env.background_mode = Environment.BG_COLOR
+		env.background_color = Color(0.16, 0.09, 0.07) if Game.local_team == 0 else Color(0.11, 0.06, 0.14)
+		env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+		env.ambient_light_color = Color(0.75, 0.7, 0.8)
+		env.ambient_light_energy = 0.6
+		env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+		var we := WorldEnvironment.new()
+		we.environment = env
+		_vp.add_child(we)
+		var key := DirectionalLight3D.new()
+		key.rotation_degrees = Vector3(-30, -35, 0)
+		key.light_energy = 1.3
+		key.light_color = Color(1.0, 0.92, 0.82)
+		_vp.add_child(key)
+		var rim := DirectionalLight3D.new()
+		rim.rotation_degrees = Vector3(-10, 150, 0)
+		rim.light_energy = 1.4
+		rim.light_color = Game.TEAM_COLORS[Game.local_team].lightened(0.3)
+		_vp.add_child(rim)
+		_view = UnitView.new()
+		_vp.add_child(_view)
+		_view.setup(0, Game.Kind.HERO, Game.local_team, "", 1)
+		if _view.ring:
+			_view.ring.visible = false
+		_view.rotation.y = 0.45
+		var cam := Camera3D.new()
+		cam.fov = 30.0
+		cam.position = Vector3(0.0, 1.55, 3.1)
+		_vp.add_child(cam)
+		cam.look_at(Vector3(0.0, 1.2, 0.0))
+
 	func _process(_d: float) -> void:
-		queue_redraw()
+		# basta aggiornarlo a 30 Hz
+		_frame += 1
+		_vp.render_target_update_mode = SubViewport.UPDATE_ONCE if _frame % 2 == 0 else SubViewport.UPDATE_DISABLED
+
+
+## Cornice, vignettatura e distintivo del livello sopra il ritratto.
+class _PortraitOver extends Control:
+	var hud: Hud
+	var level := 1
 	func _draw() -> void:
 		var r := Rect2(Vector2.ZERO, size)
-		draw_rect(r, Color(0.12, 0.07, 0.06))
-		var team: int = Game.local_team
-		var cape := Color(0.95, 0.35, 0.18) if team == 0 else Color(0.45, 0.2, 0.65)
-		# busto stilizzato di Kael: mantello, cappuccio, fiamma
-		var c := size * 0.5 + Vector2(0, 14)
-		draw_colored_polygon(PackedVector2Array([c + Vector2(-46, 40), c + Vector2(-26, -14), c + Vector2(26, -14), c + Vector2(46, 40)]), cape.darkened(0.2))
-		draw_circle(c + Vector2(0, -24), 18, Color(0.95, 0.8, 0.65))
-		draw_colored_polygon(PackedVector2Array([c + Vector2(-24, -24), c + Vector2(0, -62), c + Vector2(24, -24)]), cape)
-		draw_circle(c + Vector2(-6, -24), 2.5, Color(0.1, 0.1, 0.1))
-		draw_circle(c + Vector2(6, -24), 2.5, Color(0.1, 0.1, 0.1))
-		var t := Time.get_ticks_msec() * 0.006
-		draw_line(c + Vector2(40, 40), c + Vector2(44, -26), Color(0.45, 0.3, 0.18), 4)
-		draw_circle(c + Vector2(44, -32 + sin(t) * 1.5), 8 + sin(t * 1.7) * 1.5, Color(1.0, 0.55, 0.15) if team == 0 else Color(0.75, 0.35, 1.0))
-		draw_circle(c + Vector2(44, -32), 4, Color(1, 0.95, 0.7))
+		# vignettatura sui bordi
+		for i in 6:
+			draw_rect(r.grow(-i * 2.0), Color(0, 0, 0, 0.12), false, 2.0)
 		var u := hud.world.local_hero_unit() if hud.world else null
 		if u and not u.alive:
-			draw_rect(r, Color(0, 0, 0, 0.6))
+			draw_rect(r, Color(0.05, 0.03, 0.03, 0.65))
 		draw_rect(r, UiKit.GOLD, false, 2.0)
+		# distintivo del livello in basso a destra
+		var c := Vector2(size.x - 13, size.y - 13)
+		draw_circle(c, 13, Color(0, 0, 0, 0.75))
+		draw_circle(c, 11, Color(0.18, 0.12, 0.08))
+		draw_arc(c, 11, 0, TAU, 24, UiKit.GOLD_BRIGHT, 2.0)
+		var f := ThemeDB.fallback_font
+		draw_string(f, Vector2(c.x - 13, c.y + 6), str(level), HORIZONTAL_ALIGNMENT_CENTER, 26, 16, Color(1, 0.92, 0.7))
 
 
 func _build_top_bar() -> void:
-	var panel := PanelContainer.new()
+	var panel := UiPanel.new(10)
 	panel.set_anchors_preset(Control.PRESET_CENTER_TOP)
 	panel.offset_left = -170
 	panel.offset_right = 170
@@ -310,12 +437,12 @@ func _build_top_bar() -> void:
 
 
 func _build_minimap() -> void:
-	var frame := PanelContainer.new()
+	var frame := UiPanel.new(10, false, 8.0)
 	frame.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	frame.offset_left = 8
 	frame.offset_right = 8 + 236
-	frame.offset_top = -244
-	frame.offset_bottom = -8
+	frame.offset_top = -242
+	frame.offset_bottom = -6
 	add_child(frame)
 	_ui_blockers.append(frame)
 	_minimap = Minimap.new()
@@ -396,8 +523,7 @@ func _build_death_overlay() -> void:
 
 
 func _build_tooltip() -> void:
-	_tooltip = PanelContainer.new()
-	_tooltip.add_theme_stylebox_override("panel", UiKit.panel_style(Color(0.05, 0.04, 0.06, 0.96), UiKit.GOLD, 6, 1))
+	_tooltip = UiPanel.new(10, false, 6.0)
 	_tooltip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_tooltip.visible = false
 	_tooltip.z_index = 10
@@ -457,56 +583,105 @@ func _item_clicked(i: int) -> void:
 # --- Negozio ------------------------------------------------------------------
 
 func _build_shop() -> void:
-	_shop = PanelContainer.new()
-	_shop.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
-	_shop.offset_left = -380
-	_shop.offset_right = -12
-	_shop.offset_top = -260
-	_shop.offset_bottom = 200
+	_shop = UiPanel.new(14)
+	_shop.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	_shop.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_shop.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	# sopra il pannello dei comandi, senza sovrapporsi
+	_shop.offset_left = -404
+	_shop.offset_right = -10
+	_shop.offset_bottom = -164
+	_shop.offset_top = -164 - 650
 	_shop.visible = false
 	add_child(_shop)
 	_ui_blockers.append(_shop)
 	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 6)
+	v.add_theme_constant_override("separation", 5)
 	_shop.add_child(v)
 	var head := HBoxContainer.new()
 	v.add_child(head)
 	var title := UiKit.label("Negozio", 24, UiKit.GOLD_BRIGHT)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(title)
+	var coin := _StatIcon.new()
+	coin.kind = "gold"
+	coin.custom_minimum_size = Vector2(18, 30)
+	head.add_child(coin)
+	_shop_gold = UiKit.label("0", 18, Color(1.0, 0.84, 0.25))
+	_shop_gold.custom_minimum_size = Vector2(60, 0)
+	head.add_child(_shop_gold)
 	var close := UiKit.button("✕", func(): toggle_shop(), 0)
-	close.custom_minimum_size = Vector2(40, 36)
+	close.custom_minimum_size = Vector2(36, 32)
 	head.add_child(close)
-	_shop_hint = UiKit.label("", 14, Color(1, 0.6, 0.5))
+	_shop_hint = UiKit.label("", 13, Color(1, 0.6, 0.5))
 	v.add_child(_shop_hint)
-	for id in Game.SHOP_ORDER:
-		var d: Dictionary = Game.ITEMS[id]
-		if d.get("phase2", false) and not Game.ENABLE_PHASE2_ITEMS:
+	var groups := [["Consumabili", ["potion", "mana_potion"]], ["Attributi", ["armor", "boots", "vitality", "crystal", "ring"]], ["Armi", ["sword", "vampire"]]]
+	for g in groups:
+		var ids: Array = (g[1] as Array).filter(func(id): return Game.ITEMS.has(id) and (not Game.ITEMS[id].get("phase2", false) or Game.ENABLE_PHASE2_ITEMS))
+		if ids.is_empty():
 			continue
-		var b := Button.new()
-		b.custom_minimum_size = Vector2(0, 48)
-		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		b.text = "      %s  —  %d oro\n      %s" % [d.name, d.cost, d.desc]
-		b.add_theme_font_size_override("font_size", 14)
-		b.clip_text = true
-		var icon := _ShopIcon.new()
-		icon.symbol = id
-		icon.position = Vector2(6, 8)
-		icon.size = Vector2(32, 32)
-		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		b.add_child(icon)
-		b.pressed.connect(func(): world.send_command(["buy", id]))
-		v.add_child(b)
-		_shop_buttons[id] = b
-	v.add_child(UiKit.label("Click per comprare. Click destro su un oggetto\nnell'inventario per venderlo (50%).", 12, UiKit.TEXT_DIM))
+		var gh := UiKit.label(g[0], 13, UiKit.GOLD)
+		v.add_child(gh)
+		for id in ids:
+			var card := _ShopCard.new(id)
+			card.pressed.connect(func(): world.send_command(["buy", id]))
+			v.add_child(card)
+			_shop_buttons[id] = card
+	v.add_child(UiKit.label("Click per comprare · click destro su un oggetto\ndell'inventario per venderlo (50%).", 12, UiKit.TEXT_DIM))
 
 
-class _ShopIcon extends Control:
-	var symbol := ""
-	func _draw() -> void:
-		draw_rect(Rect2(Vector2.ZERO, size), Color(0.1, 0.08, 0.07))
-		UiKit.draw_symbol(self, symbol, size * 0.5, size.x * 0.5, Color(1, 0.5, 0.15))
-		draw_rect(Rect2(Vector2.ZERO, size), UiKit.GOLD, false, 1.0)
+## Scheda di un oggetto del negozio: icona, nome, descrizione, prezzo (rosso se non basta l'oro).
+class _ShopCard extends Button:
+	var id := ""
+	var _cost: Label
+	var _icon: IconRect
+	func _init(item_id: String) -> void:
+		id = item_id
+		var d: Dictionary = Game.ITEMS[id]
+		custom_minimum_size = Vector2(0, 50)
+		tooltip_text = "%s — %s" % [d.name, d.desc]
+		var n := UiKit.panel_style(Color(0.09, 0.07, 0.08, 0.92), Color(0.36, 0.28, 0.18), 6, 1)
+		var hv := UiKit.panel_style(Color(0.2, 0.14, 0.09, 0.95), UiKit.GOLD_BRIGHT, 6, 1)
+		var ds := UiKit.panel_style(Color(0.07, 0.06, 0.07, 0.8), Color(0.25, 0.22, 0.2), 6, 1)
+		add_theme_stylebox_override("normal", n)
+		add_theme_stylebox_override("hover", hv)
+		add_theme_stylebox_override("pressed", hv)
+		add_theme_stylebox_override("disabled", ds)
+		add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+		var h := HBoxContainer.new()
+		h.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		h.offset_left = 6
+		h.offset_right = -8
+		h.add_theme_constant_override("separation", 10)
+		h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(h)
+		_icon = IconRect.new()
+		_icon.symbol = id
+		_icon.custom_minimum_size = Vector2(40, 40)
+		_icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		h.add_child(_icon)
+		var tv := VBoxContainer.new()
+		tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		tv.alignment = BoxContainer.ALIGNMENT_CENTER
+		tv.add_theme_constant_override("separation", 0)
+		tv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		h.add_child(tv)
+		tv.add_child(UiKit.label(d.name, 15, UiKit.TEXT))
+		var desc := UiKit.label(d.desc, 12, UiKit.TEXT_DIM)
+		desc.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		desc.clip_text = true
+		desc.custom_minimum_size = Vector2(230, 0)
+		tv.add_child(desc)
+		_cost = UiKit.label(str(d.cost), 16, Color(1.0, 0.84, 0.25), HORIZONTAL_ALIGNMENT_RIGHT)
+		_cost.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		_cost.custom_minimum_size = Vector2(46, 0)
+		h.add_child(_cost)
+
+	func refresh(can_afford: bool, can_buy: bool) -> void:
+		disabled = not can_buy
+		_cost.add_theme_color_override("font_color", Color(1.0, 0.84, 0.25) if can_afford else Color(1.0, 0.35, 0.3))
+		_icon.dim = 0.0 if can_buy else 0.5
+		modulate.a = 1.0 if can_buy else 0.75
 
 
 func toggle_shop() -> void:
@@ -517,7 +692,7 @@ func toggle_shop() -> void:
 # --- Pausa ---------------------------------------------------------------------
 
 func _build_pause() -> void:
-	_pause = PanelContainer.new()
+	_pause = UiPanel.new(18)
 	_pause.set_anchors_preset(Control.PRESET_CENTER)
 	_pause.offset_left = -200
 	_pause.offset_right = 200
@@ -568,7 +743,7 @@ func toggle_pause() -> void:
 # --- Tabella punteggio ------------------------------------------------------------
 
 func _build_scoreboard() -> void:
-	_score = PanelContainer.new()
+	_score = UiPanel.new(16)
 	_score.set_anchors_preset(Control.PRESET_CENTER)
 	_score.offset_left = -330
 	_score.offset_right = 330
@@ -636,7 +811,13 @@ func _hud_update(delta: float) -> void:
 	if hd == null or u == null:
 		return
 	_portrait_name.text = "%s · %s" % [Game.HERO.name, hd.player_name]
-	_portrait_level.text = "Livello %d%s" % [hd.level, ("  (+%d punti)" % hd.ability_points) if hd.ability_points > 0 else ""]
+	_portrait_level.text = ("+%d punti abilità" % hd.ability_points) if hd.ability_points > 0 else ""
+	if _portrait_over.level != hd.level:
+		_portrait_over.level = hd.level
+		_portrait_over.queue_redraw()
+	if _portrait_over.has_meta("alive") and bool(_portrait_over.get_meta("alive")) != u.alive:
+		_portrait_over.queue_redraw()
+	_portrait_over.set_meta("alive", u.alive)
 	_xp_bar.max_value = Game.xp_to_next(hd.level)
 	_xp_bar.value = hd.xp
 	_hp_bar.max_value = u.max_hp
@@ -645,7 +826,7 @@ func _hud_update(delta: float) -> void:
 	_mana_bar.max_value = maxf(1.0, u.max_mana)
 	_mana_bar.value = u.mana
 	_mana_text.text = "%d / %d" % [int(u.mana), int(u.max_mana)]
-	_gold_label.text = "● %d oro" % int(hd.gold)
+	_gold_label.text = "%d" % int(hd.gold)
 	var dmg := Game.HERO.damage + Game.HERO.damage_per_lvl * (hd.level - 1)
 	var arm := Game.HERO.armor + Game.HERO.armor_per_lvl * (hd.level - 1)
 	var spd := Game.HERO.move_speed
@@ -654,7 +835,9 @@ func _hud_update(delta: float) -> void:
 			dmg += Game.ITEMS[it].get("damage", 0.0)
 			arm += Game.ITEMS[it].get("armor", 0.0)
 			spd += Game.ITEMS[it].get("move_speed", 0.0)
-	_stats_label.text = "Danno %d · Armatura %.1f\nVelocità %.1f" % [int(dmg), arm, spd]
+	_stat_labels.damage.text = str(int(dmg))
+	_stat_labels.armor.text = "%.1f" % arm
+	_stat_labels.speed.text = "%.1f" % spd
 	for i in 4:
 		var ab: Dictionary = Game.ABILITIES[i]
 		var lvl: int = hd.ability_levels[i]
@@ -663,17 +846,15 @@ func _hud_update(delta: float) -> void:
 		var cost: int = int(ab.mana[maxi(0, lvl - 1)])
 		_abilities[i].set_state(lvl, hd.cooldowns[i], cd_max, u.mana < cost, learnable, cost)
 	for i in 6:
-		var it: String = hd.items[i]
-		_items[i].symbol = it
-		_items[i].level = 1 if it != "" else 0
-		_items[i].queue_redraw()
+		_items[i].set_item(hd.items[i])
 	# negozio: disponibile solo vicino alla fontana
 	if _shop.visible:
 		var near := u.pos.distance_to(MapData.FOUNTAIN[u.team]) <= Game.SHOP_RANGE
 		_shop_hint.text = "" if near else "Avvicinati alla fontana per comprare"
+		_shop_gold.text = str(int(hd.gold))
 		for id in _shop_buttons:
-			var b: Button = _shop_buttons[id]
-			b.disabled = not near or hd.gold < Game.ITEMS[id].cost or hd.item_count() >= 6
+			var afford: bool = hd.gold >= Game.ITEMS[id].cost
+			(_shop_buttons[id] as _ShopCard).refresh(afford, near and afford and hd.item_count() < 6)
 	# schermata di morte
 	_death_overlay.visible = not u.alive
 	if not u.alive:

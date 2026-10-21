@@ -163,6 +163,7 @@ func _build_character(quality: int) -> void:
 		anim.playback_default_blend_time = 0.15
 	height = 2.3 if kind == Game.Kind.HERO else (2.4 if kind == Game.Kind.CREEP_SIEGE else 1.8)
 	bar_width = 70.0 if kind == Game.Kind.HERO else (50.0 if kind == Game.Kind.CREEP_SIEGE else 38.0)
+	_add_rim_light()
 	# mantelli nel colore della squadra; Kael ha anche la fiamma sul bastone
 	_tint_capes()
 	if kind == Game.Kind.HERO:
@@ -182,6 +183,20 @@ static func _configure_animations(ap: AnimationPlayer, c: Dictionary) -> void:
 		var a: String = c.get(key, "")
 		if a != "" and ap.has_animation(a):
 			ap.get_animation(a).loop_mode = Animation.LOOP_NONE
+
+
+## Leggera luce di contorno sui materiali dei personaggi (una volta per materiale condiviso):
+## le unità si staccano meglio dal terreno con texture.
+func _add_rim_light() -> void:
+	for mi in meshes:
+		if mi.mesh == null:
+			continue
+		for i in mi.mesh.get_surface_count():
+			var m := mi.mesh.surface_get_material(i) as StandardMaterial3D
+			if m and not m.rim_enabled:
+				m.rim_enabled = true
+				m.rim = 0.45
+				m.rim_tint = 0.35
 
 
 func _tint_capes() -> void:
@@ -256,7 +271,7 @@ func _build_building(subtype: String, quality: int) -> void:
 		var cm := MeshInstance3D.new()
 		var pm := PrismMesh.new()
 		var big := subtype == "ancient"
-		pm.size = Vector3(0.8, 1.1, 0.8) * (2.4 if big else 1.0)
+		pm.size = Vector3(0.6, 0.9, 0.6) * (1.9 if big else 1.0)
 		cm.mesh = pm
 		cm.material_override = crystal_material(team)
 		cm.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -330,7 +345,7 @@ static func building_ring_material(t: int) -> ShaderMaterial:
 		return _ring_mats[key]
 	var mat := ShaderMaterial.new()
 	mat.shader = load("res://scripts/world/ring.gdshader")
-	mat.set_shader_parameter("color", Color(Game.TEAM_COLORS[t], 0.4))
+	mat.set_shader_parameter("color", Color(Game.TEAM_COLORS[t], 0.28))
 	mat.set_shader_parameter("inner", 0.9)
 	mat.set_shader_parameter("shadow", 0.25)
 	_ring_mats[key] = mat
@@ -346,7 +361,7 @@ static func crystal_material(t: int) -> StandardMaterial3D:
 	m.albedo_color = c.lightened(0.2)
 	m.emission_enabled = true
 	m.emission = c
-	m.emission_energy_multiplier = 2.2
+	m.emission_energy_multiplier = 1.3
 	m.roughness = 0.2
 	m.metallic = 0.3
 	_tint_cache[key] = m

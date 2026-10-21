@@ -2,7 +2,7 @@
 title: Indice del wiki
 type: overview
 tags: [indice]
-updated: 2026-10-20
+updated: 2026-10-21
 sources: []
 ---
 
@@ -39,8 +39,9 @@ Catalogo di tutte le pagine. Leggere questo file per primo; la cronologia è in 
 - [[bilanciamento]] — **Bilanciamento**: Tutti i numeri stanno in scripts/autoload/Game.gd: è la fonte di verità. Le tabelle sono in kael, abilita, creep, edifici, oggetti.
 - [[controlli]] — **Controlli**: tutti i comandi da tastiera e mouse in stile Dota.
 - [[decisioni]] — **Decisioni prese in autonomia**: L'elenco completo e motivato è in DECISIONS.md (radice del progetto). Le più importanti:
+- [[piano-grafica-v2]] — **Piano "Grafica v2"**: più dettaglio con Dota 2 come riferimento, stesse prestazioni: terreno con texture e rilievo, acqua, vegetazione, basi fortificate, effetti a strati, HUD ornato.
 - [[fasi-di-sviluppo]] — **Fasi di sviluppo**: Principio: prima semplice, fluido e stabile — poi bello. Nessuna fase successiva finché i test della precedente non passano.
-- [[stile-grafico]] — **Stile grafico**: 3D low-poly cartoon: colorato, leggibile, a metà tra Warcraft 3 e un Clash Royale in 3D. Visuale dall'alto inclinata di 50°.
+- [[stile-grafico]] — **Stile grafico**: stilizzato con texture (dalla v2): modelli KayKit su terreno con texture CC0, rilievo, acqua, molti dettagli. Visuale dall'alto inclinata di 50°.
 
 ## Sistemi software
 

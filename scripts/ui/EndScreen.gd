@@ -16,7 +16,7 @@ func _ready() -> void:
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	bg.color = Color(0.03, 0.02, 0.05, 0.7)
 	add_child(bg)
-	var panel := PanelContainer.new()
+	var panel := UiPanel.new(22)
 	panel.set_anchors_preset(Control.PRESET_CENTER)
 	panel.offset_left = -300
 	panel.offset_right = 300

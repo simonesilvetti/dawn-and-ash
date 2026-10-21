@@ -2,7 +2,7 @@
 title: Test automatici
 type: system
 tags: [test, verifica]
-updated: 2026-10-20
+updated: 2026-10-21
 sources: [scripts/debug/AutoTest.gd, tools/net_tests.sh]
 ---
 
@@ -20,3 +20,5 @@ Argomenti dopo `--` (vedi intestazione di `AutoTest.gd`):
 | `godot --headless -- --sim-smoke` | simulazione pura senza scena |
 
 Watchdog (`--watchdog`, predefinito 900 s) per non restare bloccati. I test rendono deterministiche le verifiche fragili (deny su un creep appena nato, stordimento di qualsiasi nemico nell'area). → [[benchmark]], [[test-di-rete]], [[test-di-durata]]
+
+Dalla Grafica v2 il benchmark stampa anche i tempi di rendering GPU/CPU per preset e accetta `--bench-preset Q` (un solo preset) e `--bench-at x,y` (inquadra un punto, es. `-75,75` = base della Lega). Vedi [[prestazioni]].

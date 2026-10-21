@@ -124,3 +124,25 @@ GPU: Intel(R) Iris(R) Xe Graphics (ADL GT2) · risoluzione (1600, 900) · durata
 | Bassa | 124 | 67 | 18.9 | 1047 | 504 | 56 | 133 |
 | Media | 87 | 64 | 25.0 | 969 | 519 | 58 | 135 |
 | Alta | 42 | 32 | 35.0 | 1710 | 1246 | 57 | 135 |
+
+## 2026-10-21T13:57:22 Grafica v2
+
+GPU: Intel(R) Iris(R) Xe Graphics (ADL GT2) · risoluzione (1600, 900) · durata 20 s per preset
+
+| Preset | FPS medio | 1% low | Frame max (ms) | Tick sim (µs) | Draw call | Unità | Memoria (MB) |
+|---|---|---|---|---|---|---|---|
+| Bassa | 92 | 50 | 26.9 | 1628 | 559 | 51 | 155 |
+| Media | 54 | 34 | 37.6 | 2361 | 606 | 52 | 170 |
+| Alta | 30 | 23 | 53.2 | 2344 | 1380 | 52 | 179 |
+
+## 2026-10-21T13:57:42 Grafica v2, base della Lega
+
+GPU: Intel(R) Iris(R) Xe Graphics (ADL GT2) · risoluzione (1600, 900) · durata 15 s per preset
+
+| Preset | FPS medio | 1% low | Frame max (ms) | Tick sim (µs) | Draw call | Unità | Memoria (MB) |
+|---|---|---|---|---|---|---|---|
+| Media | 59 | 28 | 47.5 | 2506 | 359 | 53 | 164 |
+
+> Nota (2026-10-21): le due misure "Grafica v2" qui sopra sono state fatte con il portatile molto caldo (tick sim
+> 2.4 ms invece di ~1 ms) e prima dell'alleggerimento dell'erba. Nelle stesse condizioni la versione precedente faceva
+> ~66–72 FPS in Media. Da rifare a portatile freddo con il confronto A/B (vedi wiki/concepts/piano-grafica-v2.md).

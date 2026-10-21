@@ -1,10 +1,10 @@
 # Ancients Clash — Le Terre di Aethra
 
-MOBA minimale in stile Dota 2, in 3D low-poly cartoon, per Linux. Guidi **Kael, il Piromante** della Lega dell'Alba
+MOBA minimale in stile Dota 2, in 3D stilizzato (personaggi cartoon, terreno con texture), per Linux. Guidi **Kael, il Piromante** della Lega dell'Alba
 contro il Culto della Cenere: distruggi le torri e l'**Antico** nemico. Si gioca in **allenamento** (contro creep e torri)
 oppure **1 contro 1 in rete**, con una delle due macchine che fa da host.
 
-Fatto con **Godot 4.7** e GDScript. Modelli KayKit, suoni Kenney e musica OpenGameArt, tutti con licenza libera (vedi `assets/CREDITS.md`).
+Fatto con **Godot 4.7** e GDScript. Modelli KayKit, texture del terreno ambientCG, suoni Kenney e musica OpenGameArt, tutti con licenza libera (vedi `assets/CREDITS.md`).
 
 ---
 
@@ -27,7 +27,7 @@ Serve Godot 4.7 (`sudo pacman -S godot` su Arch/Omarchy).
 ```bash
 ./run.sh                 # avvia il gioco
 ./build.sh               # crea build/AncientsClash.x86_64 (scarica da solo i ~70 MB di template Linux al primo uso)
-./tools/fetch_assets.sh  # riscarica modelli, suoni e musica (sono già nel repository)
+./tools/fetch_assets.sh  # riscarica modelli, texture, suoni e musica (sono già nel repository)
 ```
 
 ---
@@ -149,7 +149,7 @@ scripts/world/                      World (partita), UnitView (grafica unità), 
 scripts/vfx/                        effetti visivi con pool
 scripts/ui/                         HUD, overlay, minimappa, menu, fine partita
 scripts/debug/AutoTest.gd           test automatici, screenshot, benchmark, soak
-assets/                             modelli, musica, suoni (+ CREDITS.md)
+assets/                             modelli, texture, musica, suoni (+ CREDITS.md)
 tools/                              script di download asset/template e test di rete
 wiki/                               documentazione del progetto (wiki mantenuto dall'agente, apribile in Obsidian)
 build/                              eseguibile esportato

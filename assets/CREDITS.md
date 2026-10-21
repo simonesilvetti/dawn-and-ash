@@ -23,6 +23,10 @@ https://kaylousberg.com · https://github.com/KayKit-Game-Assets
 
 I file originali MP3 sono stati convertiti in OGG Vorbis (qualità 4) con ffmpeg.
 
+## Texture del terreno — ambientCG (ambientcg.com), licenza CC0 1.0
+- Grass004 (erba), Ground081 (sentiero), PavingStones070 (lastricato delle basi), Rock051 (roccia dei pendii),
+  Gravel041 (ciottoli del fiume), Ground103 (terra bruciata). Solo mappe Color e NormalGL a 1K.
+
 ## Font
 Font predefinito di Godot (Open Sans, licenza SIL OFL 1.1).
 

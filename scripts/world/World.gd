@@ -740,6 +740,8 @@ func _ev_death(id: int, killer: int) -> void:
 		if u:
 			if u.is_creep():
 				Audio.play_3d("bones_%d" % randi_range(1, 3) if u.team == Game.Team.DIRE else "death_soft", v.vis_pos, -4.0)
+				if _near_camera(v.vis_pos, 40.0):
+					vfx.effect("creep_death", v.vis_pos, u.team)
 			elif u.kind == Game.Kind.TOWER:
 				Audio.play_3d("collapse", v.vis_pos, 2.0)
 	if u and u.is_hero():
@@ -824,6 +826,9 @@ func _ev_dmg(target: int, amount: int, kind: int, src: int) -> void:
 	if v == null:
 		return
 	v.flash()
+	# scintille sui colpi fisici visibili (non sugli edifici: lì basta il lampo)
+	if kind == 0 and v.building_model == null and _near_camera(v.vis_pos, 35.0):
+		vfx.hit_sparks(v.vis_pos + Vector3(0, v.height * 0.45, 0))
 	var hd := local_hero_data()
 	var local_id := hd.unit_id if hd else -1
 	var col := Color(1, 1, 1)
@@ -965,6 +970,7 @@ func _update_views(delta: float) -> void:
 			var ip: Array = _interp_pos(id, render_t)
 			p = ip[0]
 			f = ip[1]
+		var p3 := MapData.to3(p, Terrain.height(p))   # le unità "guadano" il fiume (solo visivo)
 		var moving: bool
 		var stunned: bool
 		if is_server:
@@ -974,9 +980,9 @@ func _update_views(delta: float) -> void:
 			moving = (u.flags & Unit.F_MOVING) != 0 and u.alive
 			stunned = (u.flags & Unit.F_STUNNED) != 0
 			if local_hd and id == local_hd.unit_id and _pred_active:
-				moving = (v.vis_pos - MapData.to3(p)).length() > 0.01
+				moving = (v.vis_pos - p3).length() > 0.01
 		var speed := u.current_move_speed() if is_server else (_local_hero_speed() if u.is_hero() else u.move_speed)
-		v.update_visual(delta, MapData.to3(p), f, moving, speed, u.invulnerable, stunned)
+		v.update_visual(delta, p3, f, moving, speed, u.invulnerable, stunned)
 		if v.anim and v.kind != Game.Kind.HERO:
 			var dx := p.x - cam_focus.x
 			var dz := p.y - cam_focus.z

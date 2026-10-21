@@ -45,3 +45,18 @@ Spada rossa sui nemici e mirino durante la mira, disegnati via codice. Vedi [[in
 
 ## [2026-10-20] benchmark | Verifica finale
 Bassa 124/67, Media 87/64, Alta 42/32 FPS (medio / 1% low). Test di rete finali (30 s): 5/5 OK. Vedi [[benchmark]], [[test-di-rete]].
+
+## [2026-10-21] decisione | Grafica v2
+L'utente trova la grafica troppo minimale e chiede più dettaglio (riferimento Dota 2) a parità di giocabilità, e un HUD migliore. Stile cambiato in "stilizzato con texture". Piano in [[piano-grafica-v2]]; decisioni in `DECISIONS.md`.
+
+## [2026-10-21] modifica | Terreno, acqua, ambiente
+`Terrain.gd` (rilievo visivo, alveo e guado), `ground.gdshader` con 6 texture ambientCG, `water.gdshader`, `Scenery.gd` (erba, fiori, cespugli, sassi, mura e villaggi delle basi, oggetti di scena, ponti, falò, bracieri, braci). Vedi [[mappa]], [[rendering-e-vfx]].
+
+## [2026-10-21] benchmark | Import delle texture
+Prima prova Media 46 FPS contro 70 della versione precedente: le texture erano importate senza compressione né mipmap. Con compressione VRAM e mipmap: 56–64 FPS; poi shader del terreno alleggerito. Il benchmark ora misura i tempi GPU (~14 ms/frame in Media). Vedi [[prestazioni]].
+
+## [2026-10-21] modifica | Effetti e HUD
+Effetti a strati, code continue, bruciature (Decal), muro di fiamme, scintille dei colpi. HUD ricostruito: `UiPanel`, icone a shader, ritratto 3D, negozio a schede, minimappa dal terreno vero. Vedi [[rendering-e-vfx]], [[interfaccia]].
+
+## [2026-10-21] benchmark | Grafica v2: prestazioni da sistemare (lavoro sospeso)
+A parità di calore: precedente 66–72 FPS in Media, v2 ~48–56. Costi GPU: erba ~3 ms (alleggerita dopo la misura), normal map del terreno ~1.7, acqua ~1.4 (caustiche ora solo in Alta), rilievo ~0.9. Autotest OK, rete 5/5 OK. Prossimi passi in [[piano-grafica-v2]].
