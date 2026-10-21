@@ -75,3 +75,6 @@ Nuova modalità `--views` (inquadrature fisse, `--views-fx` per le abilità) per
 
 ## [2026-10-21] test | Verifica finale della notte
 Autotest OK, rete 5/5 OK. Benchmark: Bassa 133/73, Media 83/64, Alta 44/35. Nella base la CPU era rallentata (tick 1.9 ms): A/B con `7089eca` nelle stesse condizioni alla pari (GPU +0.2 ms). Vedi [[benchmark]].
+
+## [2026-10-21] test | Soak dopo la rifinitura
+Partita accelerata: nodi 2816 → 2858, memoria 181.7 → 183.9 MB, nessun creep incastrato, tick max 0.65 ms: SOAK OK. Le increspature del guado non accumulano nodi. Distruzione dell'Antico con esplosioni scaglionate; in Bassa l'acqua senza scie e scintillii. Vedi [[test-di-durata]], [[rendering-e-vfx]].
