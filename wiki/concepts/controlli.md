@@ -16,7 +16,7 @@ sources: [scripts/world/World.gd, scripts/autoload/Game.gd]
 | Q W E R | abilità (mira + click sinistro; click destro/Esc annulla) |
 | Ctrl + Q/W/E/R | impara/potenzia abilità |
 | 1–6 | usa oggetto |
-| B | negozio |
+| B | negozio (anche pulsante "Negozio (B)" nell'HUD o click sinistro sulla propria fontana) |
 | Frecce / bordi dello schermo | scorri la telecamera; rotella = zoom |
 | Spazio (tenuto) | centra sull'eroe; Y = blocca la telecamera |
 | Minimappa | click sinistro sposta la visuale, click destro muove l'eroe |

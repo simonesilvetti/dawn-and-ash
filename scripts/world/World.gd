@@ -1118,6 +1118,9 @@ func _unhandled_input(event: InputEvent) -> void:
 					send_command(["amove", gp.x, gp.z])
 				vfx.click_indicator(gp, true)
 				_cancel_targeting()
+			elif Vector2(gp.x, gp.z).distance_to(MapData.FOUNTAIN[Game.local_team]) < 5.0:
+				# click sulla propria fontana = apri il negozio
+				hud.toggle_shop()
 		return
 	if not (event is InputEventKey) or not event.pressed or event.echo:
 		return

@@ -2,13 +2,13 @@
 title: Oggetti e negozio
 type: entity
 tags: [oggetti, negozio]
-updated: 2026-10-20
+updated: 2026-10-22
 sources: [scripts/autoload/Game.gd, scripts/sim/Sim.gd, scripts/ui/Hud.gd]
 ---
 
 # Oggetti e negozio
 
-Negozio con il tasto **B**, utilizzabile entro 18 m dalla propria fontana. Massimo 6 oggetti. Vendita al 50% con click destro sull'oggetto.
+Negozio con il tasto **B**, il pulsante "Negozio (B)" accanto all'oro o un click sulla propria fontana (il pozzo luminoso nella base); utilizzabile entro 18 m dalla propria fontana. Massimo 6 oggetti. Vendita al 50% con click destro sull'oggetto.
 
 | Oggetto | Costo | Effetto | Fase |
 |---|---|---|---|

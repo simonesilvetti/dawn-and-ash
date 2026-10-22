@@ -270,6 +270,12 @@ func _build_bottom_panel() -> void:
 	gold_row.add_child(coin)
 	_gold_label = UiKit.label("0", 19, Color(1.0, 0.84, 0.25))
 	gold_row.add_child(_gold_label)
+	# pulsante del negozio (equivale al tasto B)
+	var shop_btn := UiKit.button("Negozio (B)", func(): toggle_shop(), 0)
+	shop_btn.custom_minimum_size = Vector2(0, 26)
+	shop_btn.add_theme_font_size_override("font_size", 14)
+	shop_btn.size_flags_horizontal = Control.SIZE_EXPAND | Control.SIZE_SHRINK_END
+	gold_row.add_child(shop_btn)
 
 	# Statistiche con icone
 	var stats := VBoxContainer.new()
