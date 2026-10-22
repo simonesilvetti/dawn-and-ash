@@ -153,6 +153,7 @@ func _build_about(stack: Control) -> void:
 	_about_panel.add_child(UiKit.label("Dawn & Ash — Le Terre di Aethra", 18, UiKit.TEXT))
 	_about_panel.add_child(UiKit.label("Versione %s · %s" % [Game.VERSION, Game.APP_ID], 14, UiKit.TEXT_DIM))
 	_about_panel.add_child(UiKit.label("Autore: %s" % Game.AUTHOR, 16, UiKit.TEXT))
+	_about_panel.add_child(UiKit.label("Licenza: GNU GPL v3.0 o successiva", 14, UiKit.TEXT_DIM))
 	var site := LinkButton.new()
 	site.text = Game.WEBSITE
 	site.add_theme_font_size_override("font_size", 16)

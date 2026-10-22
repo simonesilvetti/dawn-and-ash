@@ -119,3 +119,8 @@ L'autotest falliva circa una volta su cinque su "Meteora: stordimento dei nemici
 il creep bersaglio, e un morto non risulta stordito. Ora il test dà al bersaglio 5000 di vita; 6 esecuzioni su 6 OK
 (vedi [[test-automatici]]).
 
+## [2026-10-22] decisione | Licenza GPL-3.0-or-later e repository pubblico
+Scelte dell'utente: codice con licenza GNU GPL v3.0 o successiva (`LICENSE`, README, schermata Informazioni);
+repository pubblico GitHub `dawn-and-ash`, installer `.run` allegato alla Release v0.1.0
+(vedi [[build-e-distribuzione]]). Tolto dal README l'IP d'esempio: la schermata "Ospita" mostra già gli IP locali.
+

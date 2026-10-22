@@ -89,7 +89,7 @@ Prendi l'oro con i **last hit** (il colpo finale sui creep nemici).
 2. L'ultimo IP usato viene ricordato.
 
 ### Nella stessa rete (casa, LAN)
-Usa l'IP locale dell'host (es. `192.168.1.20`). Di solito funziona subito.
+Usa l'IP locale dell'host: il gioco lo mostra nella schermata **Ospita partita**. Di solito funziona subito.
 
 ### Via internet
 - **Consigliato: Tailscale** (o ZeroTier). Installatelo entrambi, entrate nella stessa rete Tailscale e usate l'IP
@@ -161,7 +161,7 @@ scripts/debug/AutoTest.gd           test automatici, screenshot, benchmark, soak
 assets/                             modelli, texture, musica, suoni (+ CREDITS.md)
 tools/                              script di download asset/template e test di rete
 wiki/                               documentazione del progetto (wiki mantenuto dall'agente, apribile in Obsidian)
-build/                              eseguibile esportato
+build/                              eseguibile esportato e installer .run (non nel repository: vedi le Release)
 ```
 
 Documentazione tecnica dettagliata: `wiki/index.md`. Scelte prese durante lo sviluppo: `DECISIONS.md`.
@@ -171,4 +171,9 @@ Documentazione tecnica dettagliata: `wiki/index.md`. Scelte prese durante lo svi
 ## Autore
 
 **Simone Silvetti** — [simonesilvetti.com](https://simonesilvetti.com) · identificativo dell'applicazione: `com.atomicgrove.dawnandash`.
+
+## Licenza
+
+Il codice è distribuito con licenza **GNU GPL v3.0 o successiva** (`GPL-3.0-or-later`): vedi il file `LICENSE`.
+Copyright © 2026 Simone Silvetti. Gli asset di terze parti in `assets/` sono CC0 (vedi `assets/CREDITS.md`).
 
