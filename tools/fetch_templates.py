@@ -15,13 +15,13 @@ WANTED = ("templates/linux_release.x86_64", "templates/version.txt")
 
 
 def http_range(url: str, start: int, end: int) -> bytes:
-    req = urllib.request.Request(url, headers={"Range": f"bytes={start}-{end}", "User-Agent": "ancients-clash"})
+    req = urllib.request.Request(url, headers={"Range": f"bytes={start}-{end}", "User-Agent": "dawn-and-ash"})
     with urllib.request.urlopen(req, timeout=120) as r:
         return r.read()
 
 
 def total_size(url: str) -> int:
-    req = urllib.request.Request(url, method="HEAD", headers={"User-Agent": "ancients-clash"})
+    req = urllib.request.Request(url, method="HEAD", headers={"User-Agent": "dawn-and-ash"})
     with urllib.request.urlopen(req, timeout=60) as r:
         return int(r.headers["Content-Length"])
 

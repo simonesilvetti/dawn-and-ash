@@ -96,3 +96,15 @@ Kael, console di gioco più curata (riferimento Dota 2, stessi elementi e posizi
 Autotest OK (con la nuova sezione su Peppino); test di rete 6/6 OK, compreso un client con Peppino (vedi
 [[test-di-rete]]); A/B in Media: 84 FPS contro 86, +0.17 ms di GPU (vedi [[benchmark]]). Screenshot e `--views-fx`
 di Peppino controllati.
+
+## [2026-10-22] decisione | Il gioco si chiama Dawn & Ash
+Scelta dell'utente: il titolo *Ancients Clash* diventa **Dawn & Ash** (dalle due fazioni, Lega dell'Alba e Culto della
+Cenere); il sottotitolo *Le Terre di Aethra* resta. Cambiati il menu, `project.godot`, l'eseguibile (`DawnAndAsh.x86_64`),
+README, CLAUDE.md e wiki. Le impostazioni ora stanno in `~/.local/share/dawn-and-ash/` (quelle vecchie non vengono migrate).
+`promt.md` resta immutato.
+
+## [2026-10-22] ingest | Installer per Linux
+`tools/make_installer.sh` (chiamato da `build.sh`) crea l'installer autoestraente `DawnAndAsh-0.1.0-linux-x86_64.run`
+(vedi [[build-e-distribuzione]]): preferito a Flatpak e AppImage perché non richiede niente all'utente. Autotest OK dal
+progetto e dal binario installato; installazione e disinstallazione provate in una home finta.
+

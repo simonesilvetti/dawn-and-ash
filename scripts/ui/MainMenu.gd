@@ -32,7 +32,7 @@ func _ready() -> void:
 	shade.color = Color(0.04, 0.03, 0.06, 0.55)
 	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(shade)
-	var title := UiKit.label("ANCIENTS CLASH", 64, UiKit.GOLD_BRIGHT)
+	var title := UiKit.label("DAWN & ASH", 64, UiKit.GOLD_BRIGHT)
 	title.position = Vector2(60, 50)
 	title.add_theme_constant_override("outline_size", 10)
 	add_child(title)

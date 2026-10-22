@@ -1,4 +1,4 @@
-# Ancients Clash — Le Terre di Aethra
+# Dawn & Ash — Le Terre di Aethra
 
 MOBA minimale in stile Dota 2, in 3D stilizzato (personaggi cartoon, terreno con texture), per Linux. Guidi **Kael, il Piromante** della Lega dell'Alba
 contro il Culto della Cenere: distruggi le torri e l'**Antico** nemico. Si gioca in **allenamento** (contro creep e torri)
@@ -10,15 +10,24 @@ Fatto con **Godot 4.7** e GDScript. Modelli KayKit, texture del terreno ambientC
 
 ## Per giocare subito (senza installare niente)
 
-Usa l'eseguibile già pronto `build/AncientsClash.x86_64` (contiene tutto il gioco):
+**Installer** (consigliato): scarica `DawnAndAsh-0.1.0-linux-x86_64.run` (in `build/`, creato da `./build.sh`) e avvialo:
 
 ```bash
-chmod +x AncientsClash.x86_64
-./AncientsClash.x86_64
+sh DawnAndAsh-0.1.0-linux-x86_64.run
+```
+
+Non serve essere root né installare altro. Il gioco va in `~/.local/opt/dawn-and-ash`, compare nel menu delle applicazioni
+e si avvia anche col comando `dawn-and-ash`. Per toglierlo: `sh ~/.local/opt/dawn-and-ash/uninstall.run --uninstall`.
+
+**Senza installare**: l'eseguibile `build/DawnAndAsh.x86_64` contiene tutto il gioco:
+
+```bash
+chmod +x DawnAndAsh.x86_64
+./DawnAndAsh.x86_64
 ```
 
 Requisiti: Linux a 64 bit con driver video aggiornati (Vulkan). Se la scheda video non supporta Vulkan:
-`./AncientsClash.x86_64 --rendering-method gl_compatibility`.
+`./DawnAndAsh.x86_64 --rendering-method gl_compatibility`.
 
 ## Avviare dal progetto (sviluppo)
 
@@ -26,7 +35,7 @@ Serve Godot 4.7 (`sudo pacman -S godot` su Arch/Omarchy).
 
 ```bash
 ./run.sh                 # avvia il gioco
-./build.sh               # crea build/AncientsClash.x86_64 (scarica da solo i ~70 MB di template Linux al primo uso)
+./build.sh               # crea build/DawnAndAsh.x86_64 e l'installer .run (scarica da solo i ~70 MB di template Linux al primo uso)
 ./tools/fetch_assets.sh  # riscarica modelli, texture, suoni e musica (sono già nel repository)
 ```
 
@@ -108,7 +117,7 @@ Sulla macchina dell'host, se c'è un firewall attivo, apri la porta UDP 7777:
 
 Nel menu **Impostazioni**: qualità grafica (**Bassa / Media / Alta**), limite FPS, schermo intero, VSync,
 lancio rapido delle abilità, scorrimento ai bordi, velocità della telecamera, volumi. Sono salvate in
-`~/.local/share/godot/app_userdata/Ancients Clash/settings.cfg`.
+`~/.local/share/dawn-and-ash/settings.cfg`.
 
 - **Bassa**: per GPU integrate deboli (risoluzione 3D al 75%, niente glow, meno alberi).
 - **Media** (predefinita): pensata per 60+ FPS su GPU integrate recenti.

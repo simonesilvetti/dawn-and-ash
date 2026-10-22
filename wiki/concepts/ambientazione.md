@@ -15,4 +15,4 @@ Nelle **Terre di Aethra** due antichi cristalli, gli **Antichi**, alimentano due
 - [[kael]] — il Piromante della Lega. Frasi a schermo: *"Il fuoco di Aethra arde in me!"* (rinascita), *"Torno dalle ceneri..."* (schermata di morte).
 
 I nomi compaiono in menu, HUD, notifiche e fine partita. Nel codice restano `RADIANT`/`DIRE`.
-Titolo: **Ancients Clash**, sottotitolo *Le Terre di Aethra*.
+Titolo: **Dawn & Ash** (rinominato il 2026-10-22; il prompt originale `promt.md` lo chiama *Ancients Clash*), sottotitolo *Le Terre di Aethra*.

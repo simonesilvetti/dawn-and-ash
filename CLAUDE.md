@@ -1,4 +1,4 @@
-# Ancients Clash — istruzioni per gli agenti (schema del wiki)
+# Dawn & Ash — istruzioni per gli agenti (schema del wiki)
 
 Questo progetto è un MOBA minimale in stile Dota 2 fatto con **Godot 4.7 + GDScript** (vedi `README.md`).
 La conoscenza sul progetto è mantenuta in un **wiki persistente** secondo il pattern descritto in `llm-wiki.md`:
