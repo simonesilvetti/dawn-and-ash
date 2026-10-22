@@ -1,6 +1,6 @@
 class_name MainMenu
 extends Control
-## Menu principale: allenamento, ospita, unisciti, impostazioni. Lobby per il 1 contro 1.
+## Menu principale: allenamento, ospita, unisciti, impostazioni, informazioni. Lobby per il 1 contro 1.
 
 signal start_training
 signal quit_game
@@ -9,6 +9,7 @@ var _main_panel: VBoxContainer
 var _host_panel: VBoxContainer
 var _join_panel: VBoxContainer
 var _settings_panel: VBoxContainer
+var _about_panel: VBoxContainer
 var _lobby_label: RichTextLabel
 var _status: Label
 var _name_edit: LineEdit
@@ -49,6 +50,7 @@ func _ready() -> void:
 	_build_host(stack)
 	_build_join(stack)
 	_build_settings(stack)
+	_build_about(stack)
 	_status = UiKit.label("", 16, Color(1, 0.75, 0.5))
 	_status.position = Vector2(60, 860)
 	_status.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
@@ -80,7 +82,7 @@ func _set_status(t: String) -> void:
 
 
 func _show(p: Control) -> void:
-	for c in [_main_panel, _host_panel, _join_panel, _settings_panel]:
+	for c in [_main_panel, _host_panel, _join_panel, _settings_panel, _about_panel]:
 		c.visible = c == p
 	_card.reset_size()
 
@@ -104,6 +106,7 @@ func _build_main(stack: Control) -> void:
 	_main_panel.add_child(UiKit.button("Ospita partita (1 contro 1)", func(): _show(_host_panel), 380))
 	_main_panel.add_child(UiKit.button("Unisciti a una partita", func(): _show(_join_panel), 380))
 	_main_panel.add_child(UiKit.button("Impostazioni", func(): _show(_settings_panel), 380))
+	_main_panel.add_child(UiKit.button("Informazioni", func(): _show(_about_panel), 380))
 	_main_panel.add_child(UiKit.button("Esci", func(): quit_game.emit(), 380))
 
 
@@ -139,6 +142,29 @@ func _build_hero_picker(parent: Control) -> void:
 		row.add_child(b)
 	desc.text = Game.hero_def(str(Game.settings.hero)).desc
 	parent.add_child(desc)
+
+
+## Informazioni sul programma: autore, sito, versione, crediti degli asset.
+func _build_about(stack: Control) -> void:
+	_about_panel = VBoxContainer.new()
+	_about_panel.add_theme_constant_override("separation", 10)
+	stack.add_child(_about_panel)
+	_about_panel.add_child(UiKit.label("Informazioni", 26, UiKit.GOLD_BRIGHT))
+	_about_panel.add_child(UiKit.label("Dawn & Ash — Le Terre di Aethra", 18, UiKit.TEXT))
+	_about_panel.add_child(UiKit.label("Versione %s · %s" % [Game.VERSION, Game.APP_ID], 14, UiKit.TEXT_DIM))
+	_about_panel.add_child(UiKit.label("Autore: %s" % Game.AUTHOR, 16, UiKit.TEXT))
+	var site := LinkButton.new()
+	site.text = Game.WEBSITE
+	site.add_theme_font_size_override("font_size", 16)
+	site.add_theme_color_override("font_color", UiKit.GOLD_BRIGHT)
+	site.pressed.connect(func(): OS.shell_open("https://" + Game.WEBSITE))
+	_about_panel.add_child(site)
+	var credits := UiKit.label("Modelli KayKit, texture ambientCG, suoni Kenney, musica OpenGameArt "
+		+ "(tutti CC0). Fatto con Godot Engine.", 13, UiKit.TEXT_DIM)
+	credits.autowrap_mode = TextServer.AUTOWRAP_WORD
+	credits.custom_minimum_size = Vector2(380, 0)
+	_about_panel.add_child(credits)
+	_about_panel.add_child(UiKit.button("Indietro", func(): _show(_main_panel)))
 
 
 func _build_host(stack: Control) -> void:

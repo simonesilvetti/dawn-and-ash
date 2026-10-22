@@ -3,6 +3,9 @@ extends Node
 ## Tutti i numeri di bilanciamento stanno qui (vedi wiki/concepts/bilanciamento.md).
 
 const VERSION := "0.1.0"
+const APP_ID := "com.atomicgrove.dawnandash"   # identificativo dell'applicazione (.desktop, icona)
+const AUTHOR := "Simone Silvetti"
+const WEBSITE := "simonesilvetti.com"
 
 # --- Simulazione -------------------------------------------------------------
 const TICK_RATE := 30                      # tick del server al secondo

@@ -4,7 +4,7 @@ extends Node
 ##   --autotest-training            partita di allenamento simulata con verifiche -> AUTOTEST OK/FAIL
 ##   --autotest-net-host [--port P] [--duration S] [--expect-disconnect]
 ##   --autotest-net-client [--port P] [--duration S] [--netsim latency=..,jitter=..,loss=..]
-##   --shots <cartella>             sequenza di screenshot (menu, partita, abilità, torre, negozio, animazioni, vittoria)
+##   --shots <cartella>             sequenza di screenshot (menu, informazioni, partita, abilità, torre, negozio, animazioni, vittoria)
 ##   --views <cartella> [--views-quality Q]  inquadrature fisse per la revisione grafica (guado, corsia, basi...)
 ##   --benchmark [--bench-seconds S] [--bench-preset Q] [--bench-at x,y] scenario di carico per ogni preset -> benchmark_results.md
 ##   --soak [--soak-minutes M]      partita lunga accelerata: memoria, nodi, creep incastrati, errori
@@ -226,6 +226,9 @@ func _run_training() -> void:
 		if tgt:
 			u.pos = tgt.pos + Vector2(-8, 8)
 			u.prev_pos = u.pos
+			# vita alta: se la Meteora uccide il bersaglio non si può osservare lo stordimento
+			tgt.max_hp = 5000.0
+			tgt.hp = 5000.0
 			var hp0 := tgt.hp
 			w.send_command(["cast", 3, tgt.pos.x, tgt.pos.y, 0])
 			await _wait_sim(w, w.game_time + 0.3)
@@ -557,6 +560,10 @@ func _run_shots() -> void:
 	main.show_menu()
 	await _wait(4.0)
 	await _shot(dir, "01_menu")
+	main.menu._show(main.menu._about_panel)
+	await _wait(0.5)
+	await _shot(dir, "01b_informazioni")
+	main.menu._show(main.menu._main_panel)
 	var w: World = main.start_training()
 	await _wait(2.5)
 	print("  debug: hud size ", w.hud.size, " vp ", w.hud.get_viewport_rect(), " overlay ", w.overlay.size)

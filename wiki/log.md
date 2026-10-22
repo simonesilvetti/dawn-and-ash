@@ -108,3 +108,14 @@ README, CLAUDE.md e wiki. Le impostazioni ora stanno in `~/.local/share/dawn-and
 (vedi [[build-e-distribuzione]]): preferito a Flatpak e AppImage perché non richiede niente all'utente. Autotest OK dal
 progetto e dal binario installato; installazione e disinstallazione provate in una home finta.
 
+## [2026-10-22] modifica | Schermata Informazioni e identificativo com.atomicgrove.dawnandash
+Regola dell'utente per tutti i suoi programmi: identificativo `com.atomicgrove.<nome>` e una schermata di informazioni
+con autore Simone Silvetti e sito simonesilvetti.com. Costanti `APP_ID`, `AUTHOR`, `WEBSITE` in `scripts/autoload/Game.gd`;
+pulsante "Informazioni" nel menu (vedi [[interfaccia]]); l'installer usa l'identificativo per `.desktop` e icona
+(vedi [[build-e-distribuzione]]). Nuovo screenshot `01b_informazioni` in `--shots`.
+
+## [2026-10-22] test | Test della Meteora reso stabile
+L'autotest falliva circa una volta su cinque su "Meteora: stordimento dei nemici colpiti": la Meteora a volte uccideva
+il creep bersaglio, e un morto non risulta stordito. Ora il test dà al bersaglio 5000 di vita; 6 esecuzioni su 6 OK
+(vedi [[test-automatici]]).
+

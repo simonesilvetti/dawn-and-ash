@@ -165,3 +165,10 @@ build/                              eseguibile esportato
 ```
 
 Documentazione tecnica dettagliata: `wiki/index.md`. Scelte prese durante lo sviluppo: `DECISIONS.md`.
+
+---
+
+## Autore
+
+**Simone Silvetti** — [simonesilvetti.com](https://simonesilvetti.com) · identificativo dell'applicazione: `com.atomicgrove.dawnandash`.
+
