@@ -2,14 +2,14 @@
 title: Rendering ed effetti
 type: system
 tags: [grafica, vfx]
-updated: 2026-10-21
+updated: 2026-10-22
 sources: [scripts/world/MapBuilder.gd, scripts/world/foliage.gdshader, scripts/world/grass.gdshader, scripts/world/wake.gdshader, scripts/world/ground.gdshader, scripts/world/UnitView.gd, scripts/vfx/Vfx.gd, scripts/vfx/VfxLib.gd, scripts/vfx/fire.gdshader, scripts/vfx/tail.gdshader, scripts/vfx/puff.gdshader, scripts/world/Terrain.gd, scripts/world/water.gdshader, scripts/world/Scenery.gd]
 ---
 
 # Rendering ed effetti
 
 ## Unità (`UnitView`)
-Modelli KayKit con mesh superflue nascoste, mantelli colorati per squadra, armi agganciate alle ossa (`BoneAttachment3D` su `handslot.r/l`), anello di squadra con ombra blob (`ring.gdshader`), lampo bianco quando vengono colpite (`material_overlay`), morte con animazione e affondamento. Edifici: cristallo emissivo rotante a gemma (bipiramide esagonale con bordo luminoso, dal 2026-10-21 sera; prima era un prisma triangolare), luce, scudo con bordo fresnel (`shield.gdshader`), crollo con macerie.
+Modelli KayKit con mesh superflue nascoste (configurazione in `UnitView.MODELS`, chiave `hero_<id>` per gli eroi, con le animazioni delle 4 abilità in `casts`), mantelli colorati per squadra, armi agganciate alle ossa (`BoneAttachment3D` su `handslot.r/l`), anello di squadra con ombra blob (`ring.gdshader`), lampo bianco quando vengono colpite (`material_overlay`), morte con animazione e affondamento. Edifici: cristallo emissivo rotante a gemma (bipiramide esagonale con bordo luminoso, dal 2026-10-21 sera; prima era un prisma triangolare), luce, scudo con bordo fresnel (`shield.gdshader`), crollo con macerie.
 Nel guado del fiume le unità scendono all'altezza visiva del terreno (`Terrain.height`, solo grafica) e mostrano
 **increspature** sul pelo dell'acqua (`UnitView._update_wake`, `wake.gdshader`: due anelli che si allargano e schiuma
 attorno alle gambe; un quad per unità immersa, creato alla prima immersione, intensità per istanza più forte in movimento).
@@ -43,6 +43,12 @@ Pool per proiettili, gruppi di particelle, anelli, colonne, muri di fiamme, mete
 - Onda d'urto: muro di fiamme cilindrico che si allarga + anelli + polvere + bruciatura. Il muro (`fire.gdshader`, `wall=1`) usa l'altezza del vertice (non le UV del cilindro): base piena e lingue di fuoco frastagliate verso l'alto, visibile anche il lato interno.
 - Esplosioni grandi (meteora, crolli): intensità del lampo e delle fiamme divisa per `scala^1.2` e colore iniziale arancio invece che bianco, perché molte particelle additive sovrapposte saturavano al bianco. Provate anche fiamme opache: sembravano polvere color crema, scartate. La distruzione dell'Antico scagliona le tre esplosioni (0, 0.35, 0.7 s).
 - Scintille sui colpi fisici visibili (massimo 12 contemporanee), polvere alla morte dei creep.
+- [[peppino]] (dal 2026-10-22): Fendente = muro basso azzurro (vortice d'aria) + anelli d'acciaio e di fuoco + scintille;
+  Carica = sbuffi di polvere e anelli lungo il percorso nell'ordine in cui passa (`Vfx.charge_trail`) e impatto con
+  scintille, luce e scossa; Scudo di ferro = colonna e anello dorati, poi bolla dorata (`shield.gdshader` con
+  `strength` 1.1) finché dura; Spaccaterra = **crepa incandescente** (`crack.gdshader`: linea frastagliata dal rumore,
+  più larga al centro, che si apre in 0.25 s verso la punta e si raffredda in 2.2 s), rocce e polvere in sequenza,
+  solco scuro (Decal allungato), luce e scossa.
 Scossa della telecamera (`Vfx.shake`), hit-stop in allenamento.
 
 ## Qualità (`World._apply_quality`, `MapBuilder`, `Scenery`)

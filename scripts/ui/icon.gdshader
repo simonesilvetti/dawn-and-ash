@@ -1,6 +1,7 @@
 shader_type canvas_item;
 // Icone procedurali di abilità e oggetti (niente texture esterne): forme SDF con sfumature, bagliori e rumore.
-// icon: 0 Palla di fuoco, 1 Scatto, 2 Onda d'urto, 3 Meteora; 10+ oggetti (vedi IconRect.IDS).
+// icon: 0 Palla di fuoco, 1 Scatto, 2 Onda d'urto, 3 Meteora; 4-7 Peppino (Fendente, Carica, Scudo di ferro, Spaccaterra);
+// 10+ oggetti (vedi IconRect.IDS).
 // dim > 0 = icona spenta (abilità non imparata o oggetto non acquistabile).
 
 uniform int icon = 0;
@@ -106,6 +107,67 @@ void fragment() {
 		vec3 rc = mix(vec3(0.22, 0.14, 0.12), vec3(0.45, 0.3, 0.24), smoothstep(0.3, 0.7, crater));
 		rc += vec3(1.0, 0.4, 0.05) * smoothstep(0.62, 0.72, crater) * 0.8;
 		col = over(col, rc, fill(rock));
+	} else if (icon == 4) {
+		// Fendente rotante: lama al centro e scia circolare d'acciaio
+		col = bg_radial(p, vec3(0.28, 0.12, 0.06), vec3(0.03, 0.02, 0.02));
+		float r = length(p);
+		float ang = fract(atan(p.y, p.x) / 6.2831853 + TIME * 0.35);
+		float arc = abs(r - 0.62) - mix(0.02, 0.16, ang);
+		vec3 sc = mix(vec3(0.5, 0.3, 0.15), vec3(1.0, 0.95, 0.85), ang);
+		col += sc * glow(arc, 10.0) * 0.5 * ang;
+		col = over(col, sc, fill(arc) * smoothstep(0.05, 0.6, ang));
+		vec2 q = rot(-0.785398) * p;
+		float blade = max(sd_box(q - vec2(0.0, 0.12), vec2(0.075, 0.48)), q.y - 0.62 + abs(q.x) * 2.0);
+		col = over(col, mix(vec3(0.6, 0.64, 0.72), vec3(0.98, 0.98, 1.0), step(0.0, q.x)), fill(blade));
+		col = over(col, vec3(0.92, 0.72, 0.3), fill(sd_box(q - vec2(0.0, -0.38), vec2(0.24, 0.05))));
+		col = over(col, vec3(0.4, 0.22, 0.12), fill(sd_box(q - vec2(0.0, -0.53), vec2(0.05, 0.12))));
+	} else if (icon == 5) {
+		// Carica: scudo lanciato in avanti con linee di velocità e polvere
+		col = bg_radial(p - vec2(0.3, 0.0), vec3(0.3, 0.22, 0.12), vec3(0.03, 0.02, 0.02));
+		for (int i = 0; i < 4; i++) {
+			float y = 0.45 - float(i) * 0.3;
+			float l = sd_seg(p, vec2(-0.95, y), vec2(-0.25 - float(i % 2) * 0.15, y)) - 0.035;
+			col = over(col, vec3(1.0, 0.9, 0.7), fill(l) * (0.5 + 0.5 * fract(p.x * 0.7 + TIME * 1.5)));
+		}
+		vec2 q = p - vec2(0.25, 0.05);
+		float top = max(abs(q.x) - 0.42, q.y - 0.5);
+		float wedge = (abs(q.x) * 0.75 - 0.42 * (q.y + 0.7)) / 0.93;
+		float sh = max(top, wedge);
+		col += vec3(1.0, 0.8, 0.4) * glow(sh, 7.0) * 0.35;
+		col = over(col, mix(vec3(0.55, 0.58, 0.66), vec3(0.85, 0.88, 0.95), 0.5 + q.y * 0.5 - q.x * 0.4), fill(sh));
+		col = over(col, vec3(0.95, 0.75, 0.3), 1.0 - smoothstep(0.0, 0.06, abs(sh + 0.04)));
+		col = over(col, vec3(0.75, 0.15, 0.1), fill(sd_circle(q - vec2(0.0, 0.08), 0.13)));
+		float dust = texture(noise_tex, UV * 1.3 + vec2(TIME * 0.3, 0.0)).r;
+		col = over(col, vec3(0.6, 0.5, 0.38), smoothstep(0.55, 0.8, dust) * (1.0 - smoothstep(-0.9, -0.5, p.y)) * 0.8);
+	} else if (icon == 6) {
+		// Scudo di ferro: scudo dorato con aura
+		col = bg_radial(p, vec3(0.32, 0.24, 0.08), vec3(0.03, 0.02, 0.01));
+		vec2 q = p - vec2(0.0, 0.05);
+		float top = max(abs(q.x) - 0.55, q.y - 0.62);
+		float wedge = (abs(q.x) * 0.75 - 0.55 * (q.y + 0.8)) / 0.93;
+		float sh = max(top, wedge);
+		float pulse = 0.75 + 0.25 * sin(TIME * 3.0);
+		col += vec3(1.0, 0.8, 0.35) * glow(sh, 5.0) * 0.6 * pulse;
+		col = over(col, mix(vec3(0.45, 0.47, 0.55), vec3(0.88, 0.9, 0.96), 0.5 + q.y * 0.45 - q.x * 0.35), fill(sh));
+		col = over(col, mix(vec3(0.6, 0.42, 0.15), vec3(1.0, 0.88, 0.5), 0.5 + q.y * 0.5), 1.0 - smoothstep(0.0, 0.08, abs(sh + 0.05)));
+		float cross_d = min(sd_box(q - vec2(0.0, 0.05), vec2(0.07, 0.38)), sd_box(q - vec2(0.0, 0.18), vec2(0.28, 0.07)));
+		col = over(col, mix(vec3(0.85, 0.6, 0.2), vec3(1.0, 0.92, 0.6), 0.5 + q.y), fill(cross_d));
+		col = over(col, vec3(1.0), fill(sd_circle(p - vec2(-0.28, 0.45), 0.05)) * 0.7);
+	} else if (icon == 7) {
+		// Spaccaterra: spada piantata e crepa incandescente nel terreno
+		col = mix(vec3(0.12, 0.06, 0.04), vec3(0.03, 0.02, 0.03), UV.y);
+		float ground = p.y + 0.15;
+		col = over(col, mix(vec3(0.32, 0.22, 0.15), vec3(0.18, 0.12, 0.08), -p.y), 1.0 - smoothstep(-0.01, 0.01, ground));
+		float zig = abs(p.x - sin(p.y * 9.0) * 0.08 - (p.y + 0.15) * 0.25);
+		float crack = max(zig - mix(0.015, 0.09, clamp(-(p.y + 0.15), 0.0, 1.0)), ground);
+		col += vec3(1.0, 0.45, 0.08) * glow(crack, 9.0) * 0.9 * (1.0 - smoothstep(-0.02, 0.05, ground));
+		col = over(col, vec3(1.0, 0.85, 0.4), fill(crack));
+		for (int i = 0; i < 3; i++) {
+			vec2 c = vec2(-0.45 + float(i) * 0.42, -0.02 + fract(TIME * 0.5 + float(i) * 0.33) * 0.35);
+			col = over(col, vec3(0.45, 0.33, 0.25), fill(sd_box(rot(float(i)) * (p - c), vec2(0.06, 0.05))));
+		}
+		col = over(col, mix(vec3(0.6, 0.64, 0.72), vec3(0.98, 0.98, 1.0), step(0.0, p.x)), fill(sd_box(p - vec2(0.0, 0.42), vec2(0.07, 0.42))));
+		col = over(col, vec3(0.92, 0.72, 0.3), fill(sd_box(p - vec2(0.0, 0.82), vec2(0.24, 0.05))));
 	} else if (icon == 10 || icon == 18) {
 		// Spada lunga / Lama del vampiro
 		bool vamp = icon == 18;

@@ -8,10 +8,17 @@ const ENV := "res://assets/models/env/"
 
 # Configurazione dei modelli per (tipo, squadra)
 const MODELS := {
-	"hero": {"file": "Mage.glb", "scale": 0.95,
+	# eroi: "casts" = [animazione, velocità] per Q, W, E, R
+	"hero_kael": {"file": "Mage.glb", "scale": 0.95,
 		"hide": ["Spellbook", "Spellbook_open", "1H_Wand", "Mage_Hat"],
 		"idle": "Idle", "move": "Running_A", "attack": "Spellcast_Shoot", "cast": "Spellcast_Long",
+		"casts": [["Spellcast_Shoot", 1.6], ["Spellcast_Shoot", 1.6], ["Spellcast_Raise", 1.6], ["Spellcast_Long", 1.2]],
 		"death": "Death_A", "hit": "Hit_A", "run_ref": 5.5, "impact": 0.45},
+	"hero_peppino": {"file": "Knight.glb", "scale": 0.98,
+		"hide": ["2H_Sword", "Round_Shield", "Rectangle_Shield", "Spike_Shield", "1H_Sword_Offhand"],
+		"idle": "Idle", "move": "Running_A", "attack": "1H_Melee_Attack_Slice_Diagonal", "cast": "2H_Melee_Attack_Spin",
+		"casts": [["2H_Melee_Attack_Spin", 1.5], ["1H_Melee_Attack_Stab", 1.2], ["Block", 1.0], ["2H_Melee_Attack_Chop", 1.1]],
+		"death": "Death_A", "hit": "Hit_A", "run_ref": 5.5, "impact": 0.42},
 	"melee_0": {"file": "Knight.glb", "scale": 0.66,
 		"hide": ["2H_Sword", "Badge_Shield", "Rectangle_Shield", "Spike_Shield", "1H_Sword_Offhand"],
 		"idle": "Idle", "move": "Running_B", "attack": "1H_Melee_Attack_Chop", "death": "Death_A",
@@ -68,6 +75,7 @@ static var _wake_mat: ShaderMaterial
 var crystal: Node3D                 # cristallo luminoso degli edifici
 var light: OmniLight3D
 var shield: MeshInstance3D          # scudo trasparente degli edifici invulnerabili
+var buff_shield: MeshInstance3D     # bolla dorata dello Scudo di ferro (Peppino)
 var building_model: Node3D
 var collapse_t: float = -1.0
 var rubble: Node3D
@@ -76,9 +84,9 @@ var anim_accum: float = 0.0
 var anim_phase: int = 0             # sfasa gli aggiornamenti tra i creep
 
 
-static func make_key(k: int, t: int) -> String:
+static func make_key(k: int, t: int, subtype: String = "") -> String:
 	match k:
-		Game.Kind.HERO: return "hero"
+		Game.Kind.HERO: return "hero_" + (subtype if Game.HEROES.has(subtype) else "kael")
 		Game.Kind.CREEP_MELEE: return "melee_%d" % t
 		Game.Kind.CREEP_RANGED: return "ranged_%d" % t
 		Game.Kind.CREEP_SIEGE: return "siege_%d" % t
@@ -102,7 +110,7 @@ func setup(u_id: int, k: int, t: int, subtype: String, quality: int) -> void:
 	collapse_t = -1.0
 	visible = true
 	if model == null and building_model == null:
-		model_key = make_key(k, t)
+		model_key = make_key(k, t, subtype)
 		if model_key == "building":
 			_build_building(subtype, quality)
 		else:
@@ -168,8 +176,10 @@ func _build_character(quality: int) -> void:
 	_add_rim_light()
 	# mantelli nel colore della squadra; Kael ha anche la fiamma sul bastone
 	_tint_capes()
-	if kind == Game.Kind.HERO:
+	if model_key == "hero_kael":
 		_add_staff_flame(skel)
+	elif model_key == "hero_peppino":
+		_dress_warrior()
 
 
 ## Imposta i loop delle clip una sola volta per modello: modificare un'Animation condivisa
@@ -181,8 +191,12 @@ static func _configure_animations(ap: AnimationPlayer, c: Dictionary) -> void:
 	for a in [c.idle, c.move]:
 		if ap.has_animation(a):
 			ap.get_animation(a).loop_mode = Animation.LOOP_LINEAR
+	var once: Array = []
 	for key in ["death", "attack", "spawn", "cast"]:
-		var a: String = c.get(key, "")
+		once.append(c.get(key, ""))
+	for cs in c.get("casts", []):
+		once.append(cs[0])
+	for a in once:
 		if a != "" and ap.has_animation(a):
 			ap.get_animation(a).loop_mode = Animation.LOOP_NONE
 
@@ -219,6 +233,36 @@ func _tint_capes() -> void:
 			mat.albedo_color = col
 			_tint_cache[key] = mat
 		mi.material_override = mat
+
+
+## Peppino: elmo dorato (violaceo per il Culto) che lo distingue dai cavalieri dei creep, scudo a goccia lucido.
+func _dress_warrior() -> void:
+	var helm: MeshInstance3D = model.find_child("Knight_Helmet", true, false)
+	if helm and helm.mesh:
+		var hkey := "pep_helm_%d" % team
+		var hm: StandardMaterial3D = _tint_cache.get(hkey)
+		if hm == null:
+			var hb := helm.get_active_material(0) as StandardMaterial3D
+			hm = (hb.duplicate() if hb else StandardMaterial3D.new()) as StandardMaterial3D
+			hm.albedo_color = Color(1.0, 0.82, 0.45) if team == 0 else Color(0.78, 0.62, 0.98)
+			hm.metallic = 0.55
+			hm.roughness = 0.35
+			_tint_cache[hkey] = hm
+		helm.material_override = hm
+	var sh: MeshInstance3D = model.find_child("Badge_Shield", true, false)
+	if sh and sh.mesh:
+		var key2 := "pep_shield_%d" % team
+		var m2: StandardMaterial3D = _tint_cache.get(key2)
+		if m2 == null:
+			var base2 := sh.get_active_material(0) as StandardMaterial3D
+			m2 = (base2.duplicate() if base2 else StandardMaterial3D.new()) as StandardMaterial3D
+			m2.metallic = 0.5
+			m2.roughness = 0.35
+			m2.rim_enabled = true
+			m2.rim = 0.6
+			m2.rim_tint = 0.5
+			_tint_cache[key2] = m2
+		sh.material_override = m2
 
 
 func _add_staff_flame(_skel: Skeleton3D) -> void:
@@ -440,13 +484,14 @@ func play_attack(attack_point: float) -> void:
 func play_cast(slot: int) -> void:
 	if anim == null:
 		return
-	var a := "Spellcast_Shoot" if slot == 0 else ("Spellcast_Raise" if slot == 2 else "Spellcast_Long")
-	if slot == 1:
-		a = "Spellcast_Shoot"
+	var casts: Array = cfg.get("casts", [])
+	if slot < 0 or slot >= casts.size():
+		return
+	var a: String = casts[slot][0]
 	if not anim.has_animation(a):
 		return
 	var length := anim.get_animation(a).length
-	var speed := 1.6 if slot != 3 else 1.2
+	var speed: float = casts[slot][1]
 	cur_anim = ""
 	play(a, 0.06, speed)
 	lock_t = minf(length / speed, 0.9)
@@ -516,9 +561,11 @@ func tick_anim(delta: float, on_screen: bool, frame: int) -> void:
 
 ## Aggiornamento per frame chiamato da World.
 ## moving/attacking derivano dallo stato dell'unità; speed = velocità reale per adattare la camminata.
-func update_visual(delta: float, p: Vector3, f: float, moving: bool, speed: float, invulnerable: bool, stunned: bool) -> void:
+func update_visual(delta: float, p: Vector3, f: float, moving: bool, speed: float, invulnerable: bool, stunned: bool, shielded: bool = false) -> void:
 	vis_pos = p
 	position = p
+	if shielded or buff_shield:
+		_update_buff_shield(delta, shielded and not dead)
 	if flash_t > 0.0:
 		flash_t -= delta
 		if flash_t <= 0.0:
@@ -547,6 +594,32 @@ func update_visual(delta: float, p: Vector3, f: float, moving: bool, speed: floa
 		play(cfg.move, 0.12, clampf(speed / ref, 0.7, 1.7))
 	else:
 		play(cfg.idle, 0.18, 1.0)
+
+
+func _update_buff_shield(delta: float, on: bool) -> void:
+	if buff_shield == null:
+		buff_shield = MeshInstance3D.new()
+		var sm := SphereMesh.new()
+		sm.radius = 1.25
+		sm.height = 2.5
+		sm.radial_segments = 20
+		sm.rings = 10
+		buff_shield.mesh = sm
+		var key := "buff_shield_%d" % team
+		var mat: ShaderMaterial = _tint_cache.get(key)
+		if mat == null:
+			mat = ShaderMaterial.new()
+			mat.shader = load("res://scripts/vfx/shield.gdshader")
+			mat.set_shader_parameter("color", Color(1.0, 0.82, 0.4) if team == 0 else Color(0.8, 0.55, 1.0))
+			mat.set_shader_parameter("strength", 1.1)
+			_tint_cache[key] = mat
+		buff_shield.material_override = mat
+		buff_shield.position.y = 1.05
+		buff_shield.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(buff_shield)
+	buff_shield.visible = on
+	if on:
+		buff_shield.rotation.y += delta * 1.5
 
 
 ## Mostra le increspature quando l'unità (viva) ha i piedi sotto il pelo dell'acqua.

@@ -14,6 +14,7 @@ const F_STUNNED := 8
 const F_DEAD := 16
 const F_INVULN := 32
 const F_SLOWED := 64
+const F_SHIELDED := 128             # Scudo di ferro di Peppino
 
 var id: int = 0
 var kind: int = Game.Kind.CREEP_MELEE
@@ -64,6 +65,12 @@ var lane_offset: float = 0.0        # offset laterale nella corsia (creep)
 var slow_time: float = 0.0
 var slow_pct: float = 0.0
 var stun_time: float = 0.0
+var shield_time: float = 0.0        # riduzione dei danni attiva (Scudo di ferro)
+var shield_pct: float = 0.0
+var dash_time: float = 0.0          # carica in corso (Peppino): l'unità scivola verso dash_goal
+var dash_goal := Vector2.ZERO
+var dash_speed: float = 0.0
+var dash_slot: int = -1
 
 # Cast in corso
 var cast_slot: int = -1
@@ -122,6 +129,7 @@ func compute_flags() -> int:
 	if not alive: f |= F_DEAD
 	if invulnerable: f |= F_INVULN
 	if slow_time > 0.0: f |= F_SLOWED
+	if shield_time > 0.0: f |= F_SHIELDED
 	return f
 
 

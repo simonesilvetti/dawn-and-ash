@@ -57,7 +57,7 @@ func _ready() -> void:
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD
 	_status.custom_minimum_size = Vector2(700, 0)
 	add_child(_status)
-	var ver := UiKit.label("v%s · Kael, il Piromante" % Game.VERSION, 13, UiKit.TEXT_DIM)
+	var ver := UiKit.label("v%s" % Game.VERSION, 13, UiKit.TEXT_DIM)
 	ver.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	ver.offset_left = -260
 	ver.offset_top = -30
@@ -99,11 +99,46 @@ func _build_main(stack: Control) -> void:
 		Game.settings.player_name = Game.player_name
 		Game.save_settings())
 	_main_panel.add_child(_name_edit)
+	_build_hero_picker(_main_panel)
 	_main_panel.add_child(UiKit.button("Allenamento", func(): start_training.emit(), 380))
 	_main_panel.add_child(UiKit.button("Ospita partita (1 contro 1)", func(): _show(_host_panel), 380))
 	_main_panel.add_child(UiKit.button("Unisciti a una partita", func(): _show(_join_panel), 380))
 	_main_panel.add_child(UiKit.button("Impostazioni", func(): _show(_settings_panel), 380))
 	_main_panel.add_child(UiKit.button("Esci", func(): quit_game.emit(), 380))
+
+
+## Scelta dell'eroe: una scheda per eroe (nome, titolo), descrizione sotto. Salvata nelle impostazioni.
+func _build_hero_picker(parent: Control) -> void:
+	parent.add_child(UiKit.label("Eroe", 14, UiKit.TEXT_DIM))
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	parent.add_child(row)
+	var desc := UiKit.label("", 13, UiKit.TEXT)
+	desc.autowrap_mode = TextServer.AUTOWRAP_WORD
+	desc.custom_minimum_size = Vector2(380, 36)
+	var group := ButtonGroup.new()
+	for id in Game.HERO_ORDER:
+		var h: Dictionary = Game.HEROES[id]
+		var b := Button.new()
+		b.toggle_mode = true
+		b.button_group = group
+		b.text = "%s\n%s" % [h.name, h.title]
+		b.custom_minimum_size = Vector2(185, 58)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.add_theme_font_size_override("font_size", 16)
+		b.add_theme_stylebox_override("pressed", UiKit.panel_style(Color(0.42, 0.26, 0.1, 1.0), UiKit.GOLD_BRIGHT, 8, 3))
+		b.button_pressed = str(Game.settings.hero) == id
+		var hid: String = id
+		b.toggled.connect(func(on):
+			if not on:
+				return
+			Audio.play_ui("ui_click")
+			Game.settings.hero = hid
+			Game.save_settings()
+			desc.text = Game.HEROES[hid].desc)
+		row.add_child(b)
+	desc.text = Game.hero_def(str(Game.settings.hero)).desc
+	parent.add_child(desc)
 
 
 func _build_host(stack: Control) -> void:
@@ -206,7 +241,7 @@ func _refresh_lobby() -> void:
 	var t := "[b]Giocatori[/b]\n"
 	for id in Net.lobby:
 		var e: Dictionary = Net.lobby[id]
-		t += "%s %s %s\n" % ["[color=#60e0c0]●[/color]" if id == 1 else "[color=#e06080]●[/color]", e.name, "[color=#80ff80](pronto)[/color]" if e.ready else "[color=#aaaaaa](non pronto)[/color]"]
+		t += "%s %s · %s %s\n" % ["[color=#60e0c0]●[/color]" if id == 1 else "[color=#e06080]●[/color]", e.name, Game.hero_def(str(e.get("hero", "kael"))).name, "[color=#80ff80](pronto)[/color]" if e.ready else "[color=#aaaaaa](non pronto)[/color]"]
 	if _lobby_label:
 		_lobby_label.text = t
 	if Net.is_host and _host_info:

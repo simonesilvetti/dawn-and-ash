@@ -13,6 +13,14 @@ var _hp_bar: ProgressBar
 var _hp_text: Label
 var _mana_bar: ProgressBar
 var _mana_text: Label
+var _hp_glass: ShaderMaterial          # velo vetroso + scia del danno (bar.gdshader)
+var _mana_glass: ShaderMaterial
+var _hp_trail := 1.0
+var _hp_trail_hold := 0.0
+var _mana_trail := 1.0
+var _console: UiPanel
+var _console_row: HBoxContainer
+var _ability_row: HBoxContainer
 var _abilities: Array[AbilityButton] = []
 var _items: Array[AbilityButton] = []
 var _gold_label: Label
@@ -54,6 +62,10 @@ func _ready() -> void:
 	_build_pause()
 	_build_scoreboard()
 	_build_tooltip()
+	if DisplayServer.get_name() != "headless":
+		var t0 := Time.get_ticks_msec()
+		_ensure_cursors()
+		print("[hud] cursori creati in %d ms" % (Time.get_ticks_msec() - t0))
 	_countdown_label = UiKit.label("", 96, UiKit.GOLD_BRIGHT, HORIZONTAL_ALIGNMENT_CENTER)
 	_countdown_label.set_anchors_preset(Control.PRESET_CENTER)
 	_countdown_label.position = Vector2(-150, -120)
@@ -82,42 +94,18 @@ func set_attack_cursor(on: bool) -> void:
 	_cursor_state = state
 	if DisplayServer.get_name() == "headless":
 		return
-	if _cursor_sword == null:
-		_cursor_sword = _make_cursor(true)
-		_cursor_aim = _make_cursor(false)
+	_ensure_cursors()
 	match state:
 		"sword": Input.set_custom_mouse_cursor(_cursor_sword, Input.CURSOR_ARROW, Vector2(2, 2))
-		"aim": Input.set_custom_mouse_cursor(_cursor_aim, Input.CURSOR_ARROW, Vector2(16, 16))
+		"aim": Input.set_custom_mouse_cursor(_cursor_aim, Input.CURSOR_ARROW, Vector2(20, 20))
 		_: Input.set_custom_mouse_cursor(null)
 
 
-## Cursori disegnati via codice: spada rossa (attacco) e mirino arancio (mira delle abilità).
-static func _make_cursor(sword: bool) -> ImageTexture:
-	var img := Image.create(32, 32, false, Image.FORMAT_RGBA8)
-	img.fill(Color(0, 0, 0, 0))
-	if sword:
-		for i in range(2, 24):
-			for w in range(-2, 3):
-				var c := Color(0.95, 0.2, 0.15) if absi(w) < 2 else Color(0.25, 0.02, 0.02)
-				if i < 4: c = Color(1, 0.6, 0.55)
-				img.set_pixel(clampi(i + w, 0, 31), clampi(i - w, 0, 31), c)
-		for k in range(-5, 6):
-			for t in 2:
-				img.set_pixel(clampi(22 + k + t, 0, 31), clampi(22 - k + t, 0, 31), Color(0.85, 0.68, 0.3))
-		for i in range(24, 30):
-			img.set_pixel(i, i, Color(0.4, 0.25, 0.12))
-			img.set_pixel(i, i + 1 if i < 31 else i, Color(0.3, 0.18, 0.08))
-	else:
-		var c := Vector2(16, 16)
-		for y in 32:
-			for x in 32:
-				var d := Vector2(x, y).distance_to(c)
-				if absf(d - 11.0) < 1.2:
-					img.set_pixel(x, y, Color(1.0, 0.6, 0.2))
-				elif (absi(x - 16) < 1 or absi(y - 16) < 1) and d > 4.0 and d < 15.0:
-					img.set_pixel(x, y, Color(1.0, 0.85, 0.5))
-		img.set_pixel(16, 16, Color(1, 1, 1))
-	return ImageTexture.create_from_image(img)
+## Cursori (Cursors.gd): creati una volta all'avvio della partita, non al primo passaggio del mouse (niente scatti).
+static func _ensure_cursors() -> void:
+	if _cursor_sword == null:
+		_cursor_sword = Cursors.sword()
+		_cursor_aim = Cursors.aim()
 
 
 # --- Costruzione -------------------------------------------------------------
@@ -166,9 +154,18 @@ func _build_bottom_panel() -> void:
 	panel.offset_bottom = -6
 	add_child(panel)
 	_ui_blockers.append(panel)
+	# console ornata (console.gdshader) al posto del pannello standard
+	var cm := ShaderMaterial.new()
+	cm.shader = load("res://scripts/ui/console.gdshader")
+	cm.set_shader_parameter("noise_tex", MapBuilder.noise_texture())
+	cm.set_shader_parameter("team_color", Game.TEAM_COLORS[Game.local_team])
+	panel.material = cm
+	_console = panel
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
 	panel.add_child(row)
+	_console_row = row
+	row.sort_children.connect(_update_console_deco)
 
 	# Ritratto 3D del vero modello dell'eroe, con livello e barra dell'esperienza
 	var portrait := VBoxContainer.new()
@@ -203,8 +200,10 @@ func _build_bottom_panel() -> void:
 	abil.alignment = BoxContainer.ALIGNMENT_CENTER
 	abil.add_theme_constant_override("separation", 12)
 	center.add_child(abil)
+	_ability_row = abil
+	var abilities: Array = world.local_abilities()
 	for i in 4:
-		var ab: Dictionary = Game.ABILITIES[i]
+		var ab: Dictionary = abilities[i]
 		var b := AbilityButton.new()
 		b.index = i
 		b.symbol = ab.id
@@ -226,6 +225,7 @@ func _build_bottom_panel() -> void:
 	_hp_bar = _bar(Color(0.22, 0.72, 0.22), 19)
 	_hp_bar.set_anchors_preset(Control.PRESET_FULL_RECT)
 	hp_wrap.add_child(_hp_bar)
+	_hp_glass = _glass(hp_wrap, Color(1.0, 0.92, 0.7, 0.8))
 	_hp_text = UiKit.label("", 14, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER)
 	_hp_text.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_hp_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -236,6 +236,7 @@ func _build_bottom_panel() -> void:
 	_mana_bar = _bar(Color(0.22, 0.42, 0.95), 15)
 	_mana_bar.set_anchors_preset(Control.PRESET_FULL_RECT)
 	mana_wrap.add_child(_mana_bar)
+	_mana_glass = _glass(mana_wrap, Color(0.75, 0.85, 1.0, 0.6))
 	_mana_text = UiKit.label("", 12, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER)
 	_mana_text.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_mana_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -301,6 +302,38 @@ func _build_bottom_panel() -> void:
 	_portrait_level = lvl
 
 
+## Velo vetroso sopra una barra (bar.gdshader): riflesso, luccichio e scia del danno.
+func _glass(parent: Control, trail_col: Color) -> ShaderMaterial:
+	var r := ColorRect.new()
+	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	r.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var m := ShaderMaterial.new()
+	m.shader = load("res://scripts/ui/bar.gdshader")
+	m.set_shader_parameter("trail_color", trail_col)
+	r.material = m
+	r.resized.connect(func(): m.set_shader_parameter("size", r.size))
+	parent.add_child(r)
+	# il testo resta sopra il velo
+	parent.move_child(r, 1)
+	return m
+
+
+## Posizioni dei separatori e dello stemma della console (dopo l'impaginazione).
+func _update_console_deco() -> void:
+	if _console == null or _console_row == null:
+		return
+	var xs: Array[float] = []
+	var kids := _console_row.get_children()
+	for i in range(kids.size() - 1):
+		var k := kids[i] as Control
+		xs.append(_console_row.position.x + k.position.x + k.size.x + 6.0)
+	var m := _console.material as ShaderMaterial
+	m.set_shader_parameter("dividers", Vector3(xs[0] if xs.size() > 0 else -100.0, xs[1] if xs.size() > 1 else -100.0, xs[2] if xs.size() > 2 else -100.0))
+	if _ability_row:
+		var r := _ability_row.get_global_rect()
+		m.set_shader_parameter("crest_x", r.get_center().x - _console.global_position.x)
+
+
 ## Piccole icone delle statistiche e dell'oro.
 class _StatIcon extends Control:
 	var kind := ""
@@ -345,7 +378,7 @@ class _Portrait3D extends SubViewportContainer:
 		env.background_color = Color(0.16, 0.09, 0.07) if Game.local_team == 0 else Color(0.11, 0.06, 0.14)
 		env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 		env.ambient_light_color = Color(0.75, 0.7, 0.8)
-		env.ambient_light_energy = 0.6
+		env.ambient_light_energy = 0.75
 		env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 		var we := WorldEnvironment.new()
 		we.environment = env
@@ -362,15 +395,20 @@ class _Portrait3D extends SubViewportContainer:
 		_vp.add_child(rim)
 		_view = UnitView.new()
 		_vp.add_child(_view)
-		_view.setup(0, Game.Kind.HERO, Game.local_team, "", 1)
+		_view.setup(0, Game.Kind.HERO, Game.local_team, str(Game.settings.hero), 1)
 		if _view.ring:
 			_view.ring.visible = false
 		_view.rotation.y = 0.45
 		var cam := Camera3D.new()
 		cam.fov = 30.0
-		cam.position = Vector3(0.0, 1.55, 3.1)
 		_vp.add_child(cam)
-		cam.look_at(Vector3(0.0, 1.2, 0.0))
+		# inquadratura per eroe: il guerriero con l'elmo è più alto del mago
+		if str(Game.settings.hero) == "peppino":
+			cam.position = Vector3(0.0, 1.75, 3.5)
+			cam.look_at(Vector3(0.0, 1.3, 0.0))
+		else:
+			cam.position = Vector3(0.0, 1.55, 3.1)
+			cam.look_at(Vector3(0.0, 1.2, 0.0))
 
 	func _process(_d: float) -> void:
 		# basta aggiornarlo a 30 Hz
@@ -385,18 +423,35 @@ class _PortraitOver extends Control:
 	func _draw() -> void:
 		var r := Rect2(Vector2.ZERO, size)
 		# vignettatura sui bordi
-		for i in 6:
-			draw_rect(r.grow(-i * 2.0), Color(0, 0, 0, 0.12), false, 2.0)
+		for i in 7:
+			draw_rect(r.grow(-i * 2.0), Color(0, 0, 0, 0.11), false, 2.0)
 		var u := hud.world.local_hero_unit() if hud.world else null
 		if u and not u.alive:
 			draw_rect(r, Color(0.05, 0.03, 0.03, 0.65))
-		draw_rect(r, UiKit.GOLD, false, 2.0)
-		# distintivo del livello in basso a destra
+		# cornice smussata: chiara in alto e a sinistra, scura in basso e a destra, filo scuro interno
+		var hi := Color(1.0, 0.86, 0.5)
+		var lo := Color(0.4, 0.26, 0.1)
+		var w := 3.0
+		draw_rect(Rect2(0, 0, size.x, w), hi)
+		draw_rect(Rect2(0, 0, w, size.y), hi.lerp(lo, 0.3))
+		draw_rect(Rect2(0, size.y - w, size.x, w), lo)
+		draw_rect(Rect2(size.x - w, 0, w, size.y), lo.lerp(hi, 0.25))
+		draw_rect(r.grow(-w), Color(0.02, 0.012, 0.008), false, 1.0)
+		draw_rect(r, Color(0.03, 0.02, 0.01), false, 1.0)
+		# borchie agli angoli
+		for cpt in [Vector2(5, 5), Vector2(size.x - 5, 5), Vector2(5, size.y - 5)]:
+			draw_circle(cpt, 3.6, Color(0.08, 0.05, 0.02))
+			draw_circle(cpt, 2.6, Color(0.85, 0.66, 0.3))
+			draw_circle(cpt - Vector2(0.8, 0.8), 1.1, Color(1.0, 0.95, 0.75))
+		# distintivo del livello in basso a destra: anello dorato smussato con fondo scuro
 		var c := Vector2(size.x - 13, size.y - 13)
-		draw_circle(c, 13, Color(0, 0, 0, 0.75))
-		draw_circle(c, 11, Color(0.18, 0.12, 0.08))
-		draw_arc(c, 11, 0, TAU, 24, UiKit.GOLD_BRIGHT, 2.0)
+		draw_circle(c, 14.5, Color(0, 0, 0, 0.75))
+		draw_circle(c, 13, Color(0.45, 0.3, 0.1))
+		draw_arc(c, 12, PI * 0.8, PI * 1.9, 16, Color(1.0, 0.9, 0.6), 2.0, true)
+		draw_circle(c, 10.5, Color(0.12, 0.08, 0.05))
+		draw_circle(c - Vector2(0, 3), 7.0, Color(0.2, 0.14, 0.09))
 		var f := ThemeDB.fallback_font
+		draw_string_outline(f, Vector2(c.x - 13, c.y + 6), str(level), HORIZONTAL_ALIGNMENT_CENTER, 26, 16, 3, Color(0, 0, 0, 0.8))
 		draw_string(f, Vector2(c.x - 13, c.y + 6), str(level), HORIZONTAL_ALIGNMENT_CENTER, 26, 16, Color(1, 0.92, 0.7))
 
 
@@ -554,7 +609,7 @@ func _place_tooltip(anchor: Control) -> void:
 
 
 func _show_ability_tooltip(i: int, anchor: Control) -> void:
-	var ab: Dictionary = Game.ABILITIES[i]
+	var ab: Dictionary = world.local_abilities()[i]
 	var hd := world.local_hero_data()
 	var lvl: int = hd.ability_levels[i] if hd else 0
 	var t := "[b][color=#ffd27a]%s (%s)[/color][/b]\n%s\n" % [ab.name, ab.key, ab.desc]
@@ -563,8 +618,17 @@ func _show_ability_tooltip(i: int, anchor: Control) -> void:
 		t += "\n[color=#ffb070]Danno:[/color] %s" % " / ".join(dmg.map(func(d): return str(int(d))))
 	t += "\n[color=#80a8ff]Mana:[/color] %s" % " / ".join((ab.mana as Array).map(func(d): return str(int(d))))
 	t += "\n[color=#cccccc]Ricarica:[/color] %s s" % " / ".join((ab.cooldown as Array).map(func(d): return str(int(d))))
+	if ab.has("stun"):
+		var st = ab.stun
+		t += "\n[color=#ffe080]Stordimento:[/color] %s s" % (" / ".join((st as Array).map(func(d): return "%.1f" % d)) if st is Array else "%.1f" % st)
+	if ab.has("reduction"):
+		t += "\n[color=#ffe080]Danni ridotti:[/color] %s per %d s" % [" / ".join((ab.reduction as Array).map(func(d): return "%d%%" % roundi(d * 100.0))), int(ab.duration)]
+	if ab.has("slow"):
+		t += "\n[color=#9fd8ff]Rallentamento:[/color] %d%% per %d s" % [roundi(ab.slow * 100.0), int(ab.slow_time)]
 	if ab.range > 0.0:
 		t += "\n[color=#cccccc]Gittata:[/color] %d" % int(ab.range)
+	elif ab.has("aoe"):
+		t += "\n[color=#cccccc]Raggio:[/color] %.1f" % ab.aoe
 	if i == 3 and not Game.ENABLE_ULTIMATE:
 		t += "\n\n[color=#ff8080]Disponibile in un prossimo aggiornamento[/color]"
 	elif lvl == 0:
@@ -816,7 +880,8 @@ func _hud_update(delta: float) -> void:
 		_countdown_label.text = ""
 	if hd == null or u == null:
 		return
-	_portrait_name.text = "%s · %s" % [Game.HERO.name, hd.player_name]
+	var hdef: Dictionary = Game.hero_def(hd.hero)
+	_portrait_name.text = "%s · %s" % [hdef.name, hd.player_name]
 	_portrait_level.text = ("+%d punti abilità" % hd.ability_points) if hd.ability_points > 0 else ""
 	if _portrait_over.level != hd.level:
 		_portrait_over.level = hd.level
@@ -828,14 +893,29 @@ func _hud_update(delta: float) -> void:
 	_xp_bar.value = hd.xp
 	_hp_bar.max_value = u.max_hp
 	_hp_bar.value = u.hp
-	_hp_text.text = "%d / %d   +%.1f" % [int(u.hp), int(u.max_hp), u.hp_regen if world.is_server else Game.HERO.hp_regen + Game.HERO.hp_regen_per_lvl * (hd.level - 1)]
+	# scia del danno: resta ferma un attimo, poi si ritira verso il valore attuale (come in Dota)
+	var hp_k := clampf(u.hp / maxf(1.0, u.max_hp), 0.0, 1.0)
+	if hp_k >= _hp_trail:
+		_hp_trail = hp_k
+		_hp_trail_hold = 0.0
+	else:
+		_hp_trail_hold += delta
+		if _hp_trail_hold > 0.45:
+			_hp_trail = maxf(hp_k, _hp_trail - delta * 0.5)
+	_hp_glass.set_shader_parameter("value", hp_k)
+	_hp_glass.set_shader_parameter("trail", _hp_trail)
+	var mana_k := clampf(u.mana / maxf(1.0, u.max_mana), 0.0, 1.0)
+	_mana_trail = mana_k if mana_k >= _mana_trail else maxf(mana_k, _mana_trail - delta * 0.6)
+	_mana_glass.set_shader_parameter("value", mana_k)
+	_mana_glass.set_shader_parameter("trail", _mana_trail)
+	_hp_text.text = "%d / %d   +%.1f" % [int(u.hp), int(u.max_hp), u.hp_regen if world.is_server else hdef.hp_regen + hdef.hp_regen_per_lvl * (hd.level - 1)]
 	_mana_bar.max_value = maxf(1.0, u.max_mana)
 	_mana_bar.value = u.mana
 	_mana_text.text = "%d / %d" % [int(u.mana), int(u.max_mana)]
 	_gold_label.text = "%d" % int(hd.gold)
-	var dmg := Game.HERO.damage + Game.HERO.damage_per_lvl * (hd.level - 1)
-	var arm := Game.HERO.armor + Game.HERO.armor_per_lvl * (hd.level - 1)
-	var spd := Game.HERO.move_speed
+	var dmg: float = hdef.damage + hdef.damage_per_lvl * (hd.level - 1)
+	var arm: float = hdef.armor + hdef.armor_per_lvl * (hd.level - 1)
+	var spd: float = hdef.move_speed
 	for it in hd.items:
 		if it != "":
 			dmg += Game.ITEMS[it].get("damage", 0.0)
@@ -844,8 +924,9 @@ func _hud_update(delta: float) -> void:
 	_stat_labels.damage.text = str(int(dmg))
 	_stat_labels.armor.text = "%.1f" % arm
 	_stat_labels.speed.text = "%.1f" % spd
+	var abilities: Array = hd.abilities()
 	for i in 4:
-		var ab: Dictionary = Game.ABILITIES[i]
+		var ab: Dictionary = abilities[i]
 		var lvl: int = hd.ability_levels[i]
 		var cd_max: float = ab.cooldown[maxi(0, lvl - 1)]
 		var learnable: bool = hd.ability_points > 0 and lvl < ab.max_level and hd.level >= Sim.required_level(i, lvl + 1) and (i != 3 or Game.ENABLE_ULTIMATE)

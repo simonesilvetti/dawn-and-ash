@@ -69,22 +69,27 @@ func _spawn_buildings() -> void:
 	_update_invulnerability()
 
 
-func add_hero(peer: int, team: int, pname: String) -> HeroData:
+func add_hero(peer: int, team: int, pname: String, hero: String = "kael") -> HeroData:
+	if not Game.HEROES.has(hero):
+		hero = "kael"
+	var h: Dictionary = Game.hero_def(hero)
 	var u := Unit.new()
 	u.kind = Game.Kind.HERO
 	u.team = team
+	u.subtype = hero              # l'id dell'eroe arriva ai client con l'evento "spawn"
 	u.owner_peer = peer
-	u.radius = Game.HERO.radius
-	u.attack_range = Game.HERO.attack_range
-	u.attack_point = Game.HERO.attack_point
-	u.projectile_speed = Game.HERO.projectile_speed
-	u.magic_resist = Game.HERO.magic_resist
+	u.radius = h.radius
+	u.attack_range = h.attack_range
+	u.attack_point = h.attack_point
+	u.projectile_speed = h.projectile_speed
+	u.magic_resist = h.magic_resist
 	u.pos = _fountain_spawn(team)
 	u.facing = MapData.team_dir(team).angle()
 	var hd := HeroData.new()
 	hd.peer = peer
 	hd.team = team
 	hd.player_name = pname
+	hd.hero = hero
 	hd.ability_points = 1
 	u.max_hp = 1.0
 	u.hp = 1.0
@@ -230,11 +235,11 @@ func _try_cast(u: Unit, hd: HeroData, slot: int, point: Vector2) -> void:
 	var lvl: int = hd.ability_levels[slot]
 	if lvl <= 0 or hd.cooldowns[slot] > 0.0:
 		return
-	var ab: Dictionary = Game.ABILITIES[slot]
+	var ab: Dictionary = hd.abilities()[slot]
 	if u.mana < ab.mana[lvl - 1]:
 		return
 	_cancel_windup(u)
-	if ab.target == "point" and ab.id == "meteor" and u.pos.distance_to(point) > ab.range:
+	if ab.get("walk_to_range", false) and u.pos.distance_to(point) > ab.range:
 		# cammina fino a gittata, poi lancia
 		u.pending_cast_slot = slot
 		u.pending_cast_point = point
@@ -245,7 +250,7 @@ func _try_cast(u: Unit, hd: HeroData, slot: int, point: Vector2) -> void:
 
 
 func _begin_cast(u: Unit, slot: int, point: Vector2) -> void:
-	var ab: Dictionary = Game.ABILITIES[slot]
+	var ab: Dictionary = _hero_of(u).abilities()[slot]
 	u.state = Unit.State.CASTING
 	u.cast_slot = slot
 	u.cast_time = ab.cast_point
@@ -261,7 +266,7 @@ func _execute_cast(u: Unit) -> void:
 	if hd == null:
 		return
 	var slot := u.cast_slot
-	var ab: Dictionary = Game.ABILITIES[slot]
+	var ab: Dictionary = hd.abilities()[slot]
 	var lvl: int = hd.ability_levels[slot]
 	var cost: float = ab.mana[lvl - 1]
 	if u.mana < cost:
@@ -297,12 +302,50 @@ func _execute_cast(u: Unit) -> void:
 			events.append(["fx", "meteor_warn", p.x, p.y, u.id])
 			delayed.append({"time": time + ab.delay, "type": "meteor", "pos": p, "src": u.id, "team": u.team,
 				"dmg": dmg, "aoe": ab.aoe, "stun": ab.stun})
+		# --- Peppino ---
+		"cleave":
+			events.append(["fx", "cleave", u.pos.x, u.pos.y, u.id])
+			for t in _query(u.pos, ab.aoe + 1.0):
+				if t.team != u.team and t.alive and not t.is_building() and t.pos.distance_to(u.pos) <= ab.aoe + t.radius:
+					_damage(u, t, dmg, true, false)
+		"charge":
+			# scivola verso il punto (limitato alla gittata); l'impatto avviene all'arrivo (_update_dash)
+			var dest := u.cast_point
+			if dest.distance_to(u.pos) > ab.range:
+				dest = u.pos + (dest - u.pos).normalized() * ab.range
+			dest = MapData.clamp_walkable(dest, u.radius)
+			u.dash_goal = dest
+			u.dash_speed = ab.speed
+			u.dash_time = dest.distance_to(u.pos) / ab.speed + Game.TICK
+			u.dash_slot = slot
+			u.has_move_goal = false
+			if dest.distance_to(u.pos) > 0.1:
+				u.facing = (dest - u.pos).angle()
+			events.append(["fx", "charge_start", u.pos.x, u.pos.y, u.id, dest.x, dest.y])
+		"iron_shield":
+			u.shield_time = ab.duration
+			u.shield_pct = ab.reduction[lvl - 1]
+			events.append(["fx", "iron_shield", u.pos.x, u.pos.y, u.id])
+		"earthsplit":
+			var dir := (u.cast_point - u.pos)
+			dir = Vector2.from_angle(u.facing) if dir.length() < 0.1 else dir.normalized()
+			var a: Vector2 = u.pos + dir * 0.5
+			var b: Vector2 = a + dir * float(ab.range)
+			events.append(["fx", "earthsplit", a.x, a.y, u.id, b.x, b.y])
+			var mid: Vector2 = (a + b) * 0.5
+			for t in _query(mid, ab.range * 0.5 + ab.width + 1.0):
+				if t.team == u.team or not t.alive or t.is_building():
+					continue
+				if Geometry2D.get_closest_point_to_segment(t.pos, a, b).distance_to(t.pos) <= ab.width + t.radius:
+					_damage(u, t, dmg, true, false)
+					if t.alive:
+						t.stun_time = maxf(t.stun_time, ab.stun)
 
 
 func _learn(u: Unit, hd: HeroData, slot: int) -> void:
 	if slot < 0 or slot > 3 or hd.ability_points <= 0:
 		return
-	var ab: Dictionary = Game.ABILITIES[slot]
+	var ab: Dictionary = hd.abilities()[slot]
 	var cur: int = hd.ability_levels[slot]
 	if cur >= ab.max_level:
 		return
@@ -373,7 +416,7 @@ func _cheat(u: Unit, hd: HeroData, what: String) -> void:
 		"gold":
 			hd.add_gold(1000)
 		"level":
-			if hd.level < Game.HERO.max_level:
+			if hd.level < Game.HERO_MAX_LEVEL:
 				_add_xp(hd, Game.xp_to_next(hd.level) - hd.xp)
 		"cooldowns":
 			for i in 4:
@@ -447,6 +490,11 @@ func wave_number() -> int:
 func _update_unit(u: Unit, dt: float) -> void:
 	if u.slow_time > 0.0:
 		u.slow_time -= dt
+	if u.shield_time > 0.0:
+		u.shield_time -= dt
+	if u.dash_time > 0.0:
+		_update_dash(u, dt)
+		return
 	if u.attack_cd > 0.0:
 		u.attack_cd -= dt
 	if u.stun_time > 0.0:
@@ -514,6 +562,39 @@ func _update_unit(u: Unit, dt: float) -> void:
 		_move_towards(u, goal, dt)
 		return
 	u.state = Unit.State.IDLE
+
+
+## Carica di Peppino: movimento rapido non interrompibile, poi impatto ad area con stordimento.
+func _update_dash(u: Unit, dt: float) -> void:
+	u.dash_time -= dt
+	u.state = Unit.State.CASTING
+	var to := u.dash_goal - u.pos
+	var step := u.dash_speed * dt
+	var arrived := to.length() <= step or u.dash_time <= 0.0
+	if arrived:
+		u.pos = MapData.clamp_walkable(_push_out_of_buildings(u.dash_goal, u.radius, to.normalized()), u.radius)
+	else:
+		u.pos = MapData.clamp_walkable(_push_out_of_buildings(u.pos + to.normalized() * step, u.radius, to.normalized()), u.radius)
+	if not arrived:
+		return
+	u.dash_time = 0.0
+	u.state = Unit.State.IDLE
+	var hd := _hero_of(u)
+	if hd == null or u.dash_slot < 0:
+		return
+	var ab: Dictionary = hd.abilities()[u.dash_slot]
+	var lvl: int = maxi(1, hd.ability_levels[u.dash_slot])
+	u.dash_slot = -1
+	events.append(["fx", "charge_hit", u.pos.x, u.pos.y, u.id])
+	for t in _query(u.pos, ab.aoe + 1.0):
+		if t.team != u.team and t.alive and not t.is_building() and t.pos.distance_to(u.pos) <= ab.aoe + t.radius:
+			_damage(u, t, ab.damage[lvl - 1], true, false)
+			if t.alive:
+				t.stun_time = maxf(t.stun_time, ab.stun[lvl - 1])
+				# dopo la carica attacca il nemico colpito (un eroe ha la precedenza)
+				if t.is_hero() or u.target_id == 0:
+					u.target_id = t.id
+					u.forced_target = false
 
 
 func _move_towards(u: Unit, goal: Vector2, dt: float) -> bool:
@@ -596,7 +677,7 @@ func _creep_ai(u: Unit, dt: float) -> void:
 func _hero_ai(u: Unit, _dt: float) -> void:
 	# Lancio in attesa di gittata
 	if u.pending_cast_slot >= 0:
-		var ab: Dictionary = Game.ABILITIES[u.pending_cast_slot]
+		var ab: Dictionary = _hero_of(u).abilities()[u.pending_cast_slot]
 		if u.pos.distance_to(u.pending_cast_point) <= ab.range:
 			_begin_cast(u, u.pending_cast_slot, u.pending_cast_point)
 		else:
@@ -764,6 +845,8 @@ func _damage(src: Unit, t: Unit, amount: float, magic: bool, is_attack: bool, fo
 	if training and t.is_hero() and Game.cheats.invulnerable:
 		return
 	var mult := (1.0 - t.magic_resist) if magic else Game.armor_multiplier(t.armor)
+	if t.shield_time > 0.0:
+		mult *= 1.0 - t.shield_pct
 	if t.is_building():
 		var bm := bmult if bmult > 0.0 else (src.building_mult if src != null else 1.0)
 		amount *= bm
@@ -799,6 +882,8 @@ func _kill(u: Unit, killer: Unit) -> void:
 	u.target_id = 0
 	u.windup = 0.0
 	u.has_move_goal = false
+	u.dash_time = 0.0
+	u.shield_time = 0.0
 	u.death_time = time
 	events.append(["death", u.id, killer.id if killer else 0])
 	var killer_hd: HeroData = _hero_of(killer) if killer != null else null
@@ -860,18 +945,18 @@ func _share_xp(at: Vector2, team: int, amount: int) -> void:
 
 
 func _add_xp(hd: HeroData, amount: int) -> void:
-	if hd.level >= Game.HERO.max_level:
+	if hd.level >= Game.HERO_MAX_LEVEL:
 		return
 	hd.xp += amount
 	var u: Unit = units.get(hd.unit_id)
-	while hd.level < Game.HERO.max_level and hd.xp >= Game.xp_to_next(hd.level):
+	while hd.level < Game.HERO_MAX_LEVEL and hd.xp >= Game.xp_to_next(hd.level):
 		hd.xp -= Game.xp_to_next(hd.level)
 		hd.level += 1
 		hd.ability_points += 1
 		if u:
 			hd.apply_stats(u)
 			events.append(["fx", "levelup", u.pos.x, u.pos.y, u.id])
-	if hd.level >= Game.HERO.max_level:
+	if hd.level >= Game.HERO_MAX_LEVEL:
 		hd.xp = 0
 
 

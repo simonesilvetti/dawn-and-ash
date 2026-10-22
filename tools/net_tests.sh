@@ -11,12 +11,12 @@ mkdir -p "$LOG_DIR"
 PORT=7800
 fail=0
 
-run_case() { # nome netsim
-	local name="$1" ns="$2"
+run_case() { # nome netsim [eroe del client]
+	local name="$1" ns="$2" hero="${3:-kael}"
 	PORT=$((PORT + 1))
-	local args=()
-	[[ -n "$ns" ]] && args=(--netsim "$ns")
-	timeout $((DUR + 60)) "$GODOT" --headless -- --autotest-net-host --port "$PORT" --duration "$((DUR + 6))" > "$LOG_DIR/host_$name.log" 2>&1 &
+	local args=(--hero "$hero")
+	[[ -n "$ns" ]] && args+=(--netsim "$ns")
+	timeout $((DUR + 60)) "$GODOT" --headless -- --autotest-net-host --hero kael --port "$PORT" --duration "$((DUR + 6))" > "$LOG_DIR/host_$name.log" 2>&1 &
 	local hp=$!
 	sleep 2
 	timeout $((DUR + 60)) "$GODOT" --headless -- --autotest-net-client --port "$PORT" --duration "$DUR" "${args[@]}" > "$LOG_DIR/client_$name.log" 2>&1
@@ -54,6 +54,7 @@ echo "Log in $LOG_DIR"
 run_case "lan_0ms" ""
 run_case "80ms" "latency=80"
 run_case "150ms_jitter30_loss3" "latency=150,jitter=30,loss=3"
+run_case "peppino_80ms" "latency=80" peppino
 run_case "250ms_loss5" "latency=250,loss=5"
 run_robust
 exit $fail

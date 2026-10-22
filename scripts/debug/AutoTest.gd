@@ -8,6 +8,7 @@ extends Node
 ##   --views <cartella> [--views-quality Q]  inquadrature fisse per la revisione grafica (guado, corsia, basi...)
 ##   --benchmark [--bench-seconds S] [--bench-preset Q] [--bench-at x,y] scenario di carico per ogni preset -> benchmark_results.md
 ##   --soak [--soak-minutes M]      partita lunga accelerata: memoria, nodi, creep incastrati, errori
+##   --duel [--duel-runs N]         duelli 1 contro 1 in simulazione pura (IA semplice) per confrontare gli eroi
 ## Vedi wiki/systems/test-automatici.md.
 
 var main: Node
@@ -16,7 +17,7 @@ var _t0 := 0
 
 
 static func wants_autotest() -> bool:
-	for a in ["--autotest-training", "--autotest-net-host", "--autotest-net-client", "--shots", "--views", "--benchmark", "--soak"]:
+	for a in ["--autotest-training", "--autotest-net-host", "--autotest-net-client", "--shots", "--views", "--benchmark", "--soak", "--duel"]:
 		if Game.has_arg(a):
 			return true
 	return false
@@ -43,6 +44,8 @@ func _ready() -> void:
 		_run_benchmark.call_deferred()
 	elif Game.has_arg("--soak"):
 		_run_soak.call_deferred()
+	elif Game.has_arg("--duel"):
+		_run_duel.call_deferred()
 
 
 func check(cond: bool, what: String) -> void:
@@ -100,6 +103,7 @@ func _nearest_enemy(w: World, from: Vector2, team: int, max_d: float, creeps_onl
 
 func _run_training() -> void:
 	print("== AUTOTEST allenamento")
+	Game.settings.hero = "kael"     # il percorso principale verifica Kael; Peppino ha una sezione sua (non salvato)
 	var w: World = main.start_training()
 	_set_speed(float(Game.arg_value("--timescale", "6")))
 	await get_tree().process_frame
@@ -115,7 +119,7 @@ func _run_training() -> void:
 	w.send_command(["buy", "sword"])
 	await _wait_sim(w, 0.5)
 	check(hd.items.has("sword") and int(hd.gold) <= 205, "acquisto Spada lunga (oro rimasto %d)" % int(hd.gold))
-	check(absf(u.damage - (Game.HERO.damage + 15.0)) < 0.01, "statistiche aggiornate dall'oggetto (danno %.0f)" % u.damage)
+	check(absf(u.damage - (Game.hero_def("kael").damage + 15.0)) < 0.01, "statistiche aggiornate dall'oggetto (danno %.0f)" % u.damage)
 	w.send_command(["learn", 2])   # Onda d'urto
 	await _wait_sim(w, 1.0)
 	check(hd.ability_levels[2] == 1, "abilità E appresa con il punto iniziale")
@@ -259,6 +263,8 @@ func _run_training() -> void:
 	await _wait_sim(w, w.game_time + 0.5)
 	check(u.pos.distance_to(before) > 5.0, "Scatto: teletrasporto di %.1f m" % u.pos.distance_to(before))
 
+	await _test_peppino(w)
+
 	# Morte e rinascita
 	sim._kill(u, null)
 	await _wait_sim(w, w.game_time + 0.2)
@@ -277,6 +283,82 @@ func _run_training() -> void:
 	check(Audio.started_count > 10 and Audio.failed_count == 0, "audio: %d suoni avviati, %d file mancanti" % [Audio.started_count, Audio.failed_count])
 	print("  tick medio sim: %d us, FPS: %d" % [sim.last_tick_usec, Engine.get_frames_per_second()])
 	_finish("AUTOTEST")
+
+
+## Peppino: un secondo eroe alleato comandato dal test (peer 99) prova le quattro abilità e l'attacco corpo a corpo.
+func _test_peppino(w: World) -> void:
+	var sim := w.sim
+	var phd := sim.add_hero(99, 0, "Peppino", "peppino")
+	var pu: Unit = sim.units[phd.unit_id]
+	check(pu.subtype == "peppino" and not pu.is_ranged(), "Peppino creato (corpo a corpo, %d vita)" % int(pu.max_hp))
+	phd.level = 6
+	phd.ability_levels = [1, 1, 1, 1]
+	phd.apply_stats(pu)
+	pu.hp = pu.max_hp
+	pu.mana = pu.max_mana
+	await _wait_sim(w, w.game_time + 0.2)
+	check(w.views.has(pu.id) and (w.views[pu.id] as UnitView).model_key == "hero_peppino", "vista di Peppino con il modello del guerriero")
+	var refill := func():
+		for i in 4:
+			phd.cooldowns[i] = 0.0
+		pu.mana = pu.max_mana
+	# un nemico vicino da colpire: creep nuovo della squadra avversaria
+	sim._spawn_wave()
+	await _wait_sim(w, w.game_time + 0.1)
+	var tgt: Unit = null
+	for c in sim.unit_list:
+		if c.is_creep() and c.alive and c.team == 1 and (tgt == null or c.max_hp > tgt.max_hp):
+			tgt = c
+	check(tgt != null, "bersaglio per Peppino")
+	if tgt == null:
+		return
+	tgt.max_hp = 99999.0
+	tgt.hp = 99999.0
+	# Carica (W)
+	pu.pos = tgt.pos + Vector2(-6.5, 0)
+	pu.prev_pos = pu.pos
+	sim.queue_command(99, ["cast", 1, tgt.pos.x, tgt.pos.y])
+	await _wait_sim(w, w.game_time + 0.25)
+	var stunned := tgt.stun_time > 0.0
+	await _wait_sim(w, w.game_time + 0.4)
+	stunned = stunned or tgt.stun_time > 0.0 or tgt.hp < 99999.0
+	check(pu.pos.distance_to(tgt.pos) < 3.6 and tgt.hp < 99999.0, "Carica: arrivo sul bersaglio (%.1f m) e danno" % pu.pos.distance_to(tgt.pos))
+	check(stunned, "Carica: stordimento all'impatto")
+	# Fendente rotante (Q)
+	refill.call()
+	var hp0 := tgt.hp
+	sim.queue_command(99, ["cast", 0, pu.pos.x, pu.pos.y])
+	await _wait_sim(w, w.game_time + 0.5)
+	check(tgt.hp < hp0 and phd.cooldowns[0] > 0.0, "Fendente rotante: danno ad area (%d)" % int(hp0 - tgt.hp))
+	# Scudo di ferro (E): riduzione dei danni
+	refill.call()
+	sim.queue_command(99, ["cast", 2, pu.pos.x, pu.pos.y])
+	await _wait_sim(w, w.game_time + 0.4)
+	check(pu.shield_time > 0.0, "Scudo di ferro attivo")
+	var php := pu.hp
+	sim._damage(null, pu, 100.0, true, false)
+	var taken := php - pu.hp
+	var expected: float = 100.0 * (1.0 - pu.magic_resist) * (1.0 - Game.hero_abilities("peppino")[2].reduction[0])
+	check(absf(taken - expected) < 0.5, "Scudo di ferro: danno ridotto (%.0f invece di %.0f)" % [taken, 100.0 * (1.0 - pu.magic_resist)])
+	# Spaccaterra (R)
+	refill.call()
+	pu.pos = tgt.pos + Vector2(-7.0, 0.5)
+	pu.prev_pos = pu.pos
+	tgt.stun_time = 0.0
+	hp0 = tgt.hp
+	sim.queue_command(99, ["cast", 3, tgt.pos.x, tgt.pos.y])
+	await _wait_sim(w, w.game_time + 0.7)
+	check(tgt.hp < hp0 and tgt.stun_time > 0.0, "Spaccaterra: danno e stordimento in linea (%d)" % int(hp0 - tgt.hp))
+	# attacco corpo a corpo
+	tgt.stun_time = 0.0
+	hp0 = tgt.hp
+	sim.queue_command(99, ["attack", tgt.id])
+	await _wait_sim(w, w.game_time + 3.0)
+	check(tgt.hp < hp0, "Peppino attacca in mischia (%d danni)" % int(hp0 - tgt.hp))
+	sim.queue_command(99, ["stop"])
+	tgt.max_hp = 300.0
+	tgt.hp = 1.0
+	await _wait_sim(w, w.game_time + 0.3)
 
 
 # ============================================================================
@@ -367,6 +449,8 @@ func _run_net_client() -> void:
 	await _wait(3.5)
 	var u := w.local_hero_unit()
 	check(u != null, "eroe locale ricevuto dal server")
+	if u:
+		check(u.subtype == str(Game.settings.hero), "eroe scelto nel menu (%s) creato dal server" % u.subtype)
 	if Game.has_arg("--die-after"):
 		await _wait(float(Game.arg_value("--die-after", "5")))
 		print("  client: chiusura brusca simulata")
@@ -469,6 +553,7 @@ func _run_shots() -> void:
 	var dir := Game.arg_value("--shots", "res://screenshots")
 	DirAccess.make_dir_recursive_absolute(dir if dir.is_absolute_path() else ProjectSettings.globalize_path(dir))
 	print("== Screenshot in ", dir)
+	Game.settings.hero = "kael"
 	main.show_menu()
 	await _wait(4.0)
 	await _shot(dir, "01_menu")
@@ -577,6 +662,7 @@ func _run_views() -> void:
 	DirAccess.make_dir_recursive_absolute(dir if dir.is_absolute_path() else ProjectSettings.globalize_path(dir))
 	if Game.has_arg("--views-quality"):
 		Game.settings.quality = int(Game.arg_value("--views-quality", "1"))
+	Game.settings.hero = Game.arg_value("--views-hero", "kael")
 	var w: World = main.start_training()
 	await _wait(1.0)
 	w.sim._spawn_wave()
@@ -603,6 +689,11 @@ func _run_views() -> void:
 		_focus(w, hu.pos, 20.0)
 		await _wait(0.5)
 		var casts := [["onda", 2, Vector2.ZERO], ["palla", 0, Vector2(10, -8)], ["scatto", 1, Vector2(4, -6)], ["meteora", 3, Vector2(6, -2)]]
+		if w.local_hero_id() == "peppino":
+			casts = [["fendente", 0, Vector2.ZERO], ["carica", 1, Vector2(7, -5)], ["scudo", 2, Vector2.ZERO], ["spaccaterra", 3, Vector2(8, -6)]]
+			_focus(w, hu.pos, 9.0)
+			await _wait(0.6)
+			await _shot(dir, "eroe")
 		for c in casts:
 			w.send_command(["cheat", "cooldowns"])
 			var tgt: Vector2 = hu.pos + c[2]
@@ -628,6 +719,7 @@ func _run_benchmark() -> void:
 	var presets := [0, 1, 2]
 	if Game.has_arg("--bench-preset"):
 		presets = [int(Game.arg_value("--bench-preset", "1"))]
+	Game.settings.hero = "kael"     # scenario fisso: stesse abilità a ogni misura
 	for q in presets:
 		Game.settings.quality = q
 		var w: World = main.start_training()
@@ -802,3 +894,192 @@ func _run_soak() -> void:
 	check(w.sim.unit_list.size() <= Game.MAX_UNITS, "limite di unità rispettato (%d)" % w.sim.unit_list.size())
 	check(tick_max < 8000, "tick di simulazione massimo < 8 ms (%d us)" % tick_max)
 	_finish("SOAK")
+
+
+# ============================================================================
+# Duelli tra eroi (bilanciamento)
+# ============================================================================
+
+## Combattimenti 1 contro 1 a vari livelli con gli stessi oggetti, in simulazione pura (nessuna scena),
+## lontano da torri e creep. L'IA è semplice ma usa le abilità di ogni eroe come farebbe un giocatore:
+## Kael tiene la distanza e usa lo scatto per fuggire, Peppino carica e stordisce.
+var _duel_stats: Dictionary = {}
+
+func _run_duel() -> void:
+	var runs := int(Game.arg_value("--duel-runs", "40"))
+	print("== DUELLI (%d per caso)" % runs)
+	var builds := {1: [], 3: ["sword"], 6: ["sword", "armor", "vitality"], 10: ["sword", "armor", "vitality", "boots", "vampire"]}
+	var pairs := [["kael", "kael"], ["peppino", "peppino"], ["kael", "peppino"]]
+	var lines: Array[String] = []
+	var levels := [1, 3, 6, 10]
+	if Game.arg_value("--duel-level") != "":
+		levels = [int(Game.arg_value("--duel-level"))]
+		pairs = [["kael", "peppino"]]
+	if Game.has_arg("--duel-noitems"):
+		for k in builds:
+			builds[k] = []
+	for lvl in levels:
+		for pr in pairs:
+			var wins := [0, 0]
+			var draws := 0
+			var t_sum := 0.0
+			var hp_left := [0.0, 0.0]
+			for r in runs:
+				# a turno ciascun eroe gioca per la Lega o per il Culto (nessun vantaggio di lato)
+				var swap := r % 2 == 1
+				var res: Array = _duel_once(pr[1] if swap else pr[0], pr[0] if swap else pr[1], lvl, builds[lvl], 1000 + r)
+				var w: int = res[0]
+				if w < 0:
+					draws += 1
+				else:
+					var who := w if not swap else 1 - w
+					wins[who] += 1
+					hp_left[who] += res[2]
+				t_sum += res[1]
+			var line := "liv %2d  %-8s vs %-8s  vittorie %2d - %2d  (doppio KO %d)  durata media %.1f s  vita residua del vincitore %d%% / %d%%" % [
+				lvl, pr[0], pr[1], wins[0], wins[1], draws, t_sum / runs,
+				roundi(100.0 * hp_left[0] / maxf(1.0, wins[0])), roundi(100.0 * hp_left[1] / maxf(1.0, wins[1]))]
+			print(line)
+			lines.append(line)
+	if Game.has_arg("--duel-stats"):
+		for k in _duel_stats:
+			print("  %-12s lanci %4d  a segno %4d" % [k, _duel_stats[k][0], _duel_stats[k][1]])
+	print("DUEL OK")
+	Game.quit(0)
+
+
+func _duel_once(h0: String, h1: String, lvl: int, items: Array, seed_n: int) -> Array:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_n
+	var sim := Sim.new(true)
+	sim._wave_timer = 1e9
+	var hds: Array[HeroData] = [sim.add_hero(1, 0, "A", h0), sim.add_hero(2, 1, "B", h1)]
+	var us: Array[Unit] = []
+	# posizioni: sulla corsia a metà strada tra le T1, a 9-15 m l'uno dall'altro
+	var dir := MapData.team_dir(0)
+	var nrm := MapData.lane_normal()
+	var center := Vector2(-20, 20) + nrm * rng.randf_range(-4.0, 4.0)
+	var gap := rng.randf_range(9.0, 15.0)
+	for i in 2:
+		var hd := hds[i]
+		hd.level = lvl
+		hd.ability_levels = [0, 0, 0, 0]
+		hd.ability_points = 0
+		_duel_build(hd, lvl)
+		for k in items.size():
+			hd.items[k] = items[k]
+		var u: Unit = sim.units[hd.unit_id]
+		hd.apply_stats(u)
+		u.hp = u.max_hp
+		u.mana = u.max_mana
+		u.pos = center + dir * (gap * 0.5) * (-1.0 if i == 0 else 1.0) + nrm * rng.randf_range(-2.0, 2.0)
+		u.prev_pos = u.pos
+		us.append(u)
+	var t := 0.0
+	var think := [rng.randf_range(0.0, 0.3), rng.randf_range(0.0, 0.3)]
+	while t < 90.0:
+		for i in 2:
+			think[i] -= Game.TICK
+			if think[i] <= 0.0:
+				think[i] = rng.randf_range(0.12, 0.3)     # tempo di reazione variabile
+				_duel_ai(sim, hds[i], us[i], us[1 - i], i + 1, rng)
+		var hp_before := [us[0].hp, us[1].hp]
+		sim.tick()
+		if Game.has_arg("--duel-stats"):
+			for e in sim.events:
+				if e[0] == "fx" and e[1] in ["meteor_hit", "explosion", "earthsplit", "cleave", "charge_hit", "shockwave"]:
+					var k: String = e[1]
+					var victim := 1 if int(e[4]) == us[0].id else 0
+					var hit: bool = us[victim].hp < float(hp_before[victim]) - 1.0
+					var st: Array = _duel_stats.get(k, [0, 0])
+					st[0] += 1
+					st[1] += 1 if hit else 0
+					_duel_stats[k] = st
+		sim.events.clear()
+		t += Game.TICK
+		if not us[0].alive or not us[1].alive:
+			break
+	var winner := -1
+	if us[0].alive and not us[1].alive:
+		winner = 0
+	elif us[1].alive and not us[0].alive:
+		winner = 1
+	var left := us[winner].hp / us[winner].max_hp if winner >= 0 else 0.0
+	return [winner, t, left]
+
+
+## Distribuisce i punti abilità come un giocatore tipico: ultimate appena possibile, poi Q, E, W a rotazione.
+func _duel_build(hd: HeroData, lvl: int) -> void:
+	var points := lvl + 1
+	var order := [3, 0, 2, 1]
+	var abs_: Array = hd.abilities()
+	while points > 0:
+		var spent := false
+		for s in order:
+			var cur: int = hd.ability_levels[s]
+			if cur < abs_[s].max_level and lvl >= Sim.required_level(s, cur + 1):
+				hd.ability_levels[s] = cur + 1
+				points -= 1
+				spent = true
+				break
+		if not spent:
+			break
+		# rotazione tra le abilità base dopo ogni punto
+		var base: Array = [order[1], order[2], order[3]]
+		base.push_back(base.pop_front())
+		order = [3, base[0], base[1], base[2]]
+
+
+func _duel_ai(sim: Sim, hd: HeroData, me: Unit, en: Unit, peer: int, _rng: RandomNumberGenerator) -> void:
+	if not me.alive or not en.alive or me.state == Unit.State.CASTING or me.dash_time > 0.0:
+		return
+	var d := me.pos.distance_to(en.pos)
+	var ready := func(s: int) -> bool:
+		if Game.arg_value("--duel-ban") == "%s%d" % [hd.hero, s]:
+			return false
+		var lvl: int = hd.ability_levels[s]
+		return lvl > 0 and hd.cooldowns[s] <= 0.0 and me.mana >= hd.abilities()[s].mana[lvl - 1]
+	var cast := func(s: int, p: Vector2) -> void:
+		sim.queue_command(peer, ["cast", s, p.x, p.y])
+	match hd.hero:
+		"kael":
+			var enemy_melee := not en.is_ranged()
+			if enemy_melee and d < 3.2 and ready.call(1):
+				var away := (me.pos - en.pos).normalized()
+				cast.call(1, me.pos + away * 10.0)
+				return
+			# mira anticipata: dove sarà il nemico (meteora dopo 1 s, palla di fuoco a 25 m/s)
+			var vel := ((en.pos - en.prev_pos) / Game.TICK).limit_length(en.current_move_speed())
+			if en.dash_time > 0.0:
+				vel = Vector2.ZERO
+			if ready.call(3) and d <= 15.0 and (en.is_stunned() or en.slow_time > 0.0 or d < 5.0):
+				# un nemico corpo a corpo che insegue finirà addosso a Kael: si mira tra i due
+				var aim := en.pos if en.is_stunned() else (me.pos.lerp(en.pos, 0.35) if enemy_melee and d < 6.0 else en.pos + vel * 1.1)
+				cast.call(3, aim)
+				return
+			if ready.call(0) and d <= 13.0:
+				cast.call(0, en.pos + vel * (d / 25.0))
+				return
+			if ready.call(2) and d <= 4.6:
+				cast.call(2, me.pos)
+				return
+			# kiting: tra un colpo e l'altro si allontana da un nemico corpo a corpo
+			if enemy_melee and d < 4.0 and me.windup <= 0.0 and me.attack_cd > 0.45:
+				var away2 := (me.pos - en.pos).normalized()
+				sim.queue_command(peer, ["move", me.pos.x + away2.x * 3.0, me.pos.y + away2.y * 3.0])
+				return
+		"peppino":
+			if ready.call(1) and d > 3.0 and d <= 9.0:
+				cast.call(1, en.pos)
+				return
+			if ready.call(3) and d <= 11.0:
+				cast.call(3, en.pos)
+				return
+			if ready.call(2) and d <= 6.0:
+				cast.call(2, me.pos)
+				return
+			if ready.call(0) and d <= 3.2:
+				cast.call(0, me.pos)
+				return
+	if me.target_id != en.id:
+		sim.queue_command(peer, ["attack", en.id])

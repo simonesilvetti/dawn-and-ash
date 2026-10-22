@@ -2,14 +2,14 @@
 title: Netcode
 type: system
 tags: [rete, multiplayer]
-updated: 2026-10-20
+updated: 2026-10-22
 sources: [scripts/autoload/Net.gd, scripts/world/World.gd, scripts/sim/Sim.gd]
 ---
 
 # Netcode
 
 ## Trasporto
-ENet (`ENetMultiplayerPeer`), 4 canali: 0 lobby (affidabile), 1 eventi e comandi (affidabile), 2 snapshot (non affidabile ordinato), 3 ping. Timeout di disconnessione 5–8 s. Massimo 1 avversario; controllo di versione all'ingresso.
+ENet (`ENetMultiplayerPeer`), 4 canali: 0 lobby (affidabile), 1 eventi e comandi (affidabile), 2 snapshot (non affidabile ordinato), 3 ping. Timeout di disconnessione 5–8 s. Massimo 1 avversario; controllo di versione all'ingresso. Il saluto del client (`_hello`) porta anche l'**eroe scelto**: la lobby lo mostra e l'host crea quell'eroe (`World.add_remote_player`).
 
 ## Server → client
 - **Snapshot** a 30 Hz (ogni tick): intestazione per client (ultimo comando eseguito + tick), poi per unità `id u16, maschera u8` e solo i campi cambiati: posizione (i16 ×100, 1 cm), direzione u8, vita u16, mana u16, flag u8, massimi. Snapshot completo ogni 15 tick. Circa 8 KB/s in ingresso.

@@ -7,6 +7,7 @@ var unit_id: int = 0
 var peer: int = 0
 var team: int = Game.Team.RADIANT
 var player_name := ""
+var hero := "kael"                    # id in Game.HEROES
 
 var level: int = 1
 var xp: int = 0
@@ -43,9 +44,13 @@ func item_count() -> int:
 	return n
 
 
+func abilities() -> Array:
+	return Game.hero_abilities(hero)
+
+
 ## Applica livello e oggetti alle statistiche dell'unità.
 func apply_stats(u: Unit) -> void:
-	var h: Dictionary = Game.HERO
+	var h: Dictionary = Game.hero_def(hero)
 	var l := level - 1
 	var hp_ratio := u.hp / u.max_hp if u.max_hp > 0.0 else 1.0
 	var mana_ratio := u.mana / u.max_mana if u.max_mana > 0.0 else 1.0
@@ -76,7 +81,7 @@ func apply_stats(u: Unit) -> void:
 
 func to_dict() -> Dictionary:
 	return {
-		"u": unit_id, "p": peer, "t": team, "n": player_name,
+		"u": unit_id, "p": peer, "t": team, "n": player_name, "h": hero,
 		"lv": level, "xp": xp, "g": int(gold), "ap": ability_points,
 		"al": ability_levels, "cd": cooldowns, "it": items, "rt": respawn_timer,
 		"k": kills, "d": deaths, "lh": last_hits, "dn": denies,
@@ -89,6 +94,7 @@ func from_dict(d: Dictionary) -> void:
 	peer = int(d.get("p", peer))
 	team = int(d.get("t", team))
 	player_name = str(d.get("n", player_name))
+	hero = str(d.get("h", hero))
 	level = int(d.get("lv", level))
 	xp = int(d.get("xp", xp))
 	gold = float(d.get("g", gold))

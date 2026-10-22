@@ -81,3 +81,18 @@ Partita accelerata: nodi 2816 → 2858, memoria 181.7 → 183.9 MB, nessun creep
 
 ## [2026-10-22] modifica | Negozio apribile col mouse
 Il negozio non ha un edificio e si apriva solo con B. Aggiunti il pulsante "Negozio (B)" accanto all'oro nell'HUD (`scripts/ui/Hud.gd`) e il click sinistro sulla propria fontana (`scripts/world/World.gd`). Autotest OK. Vedi [[oggetti]].
+
+## [2026-10-22] ingest | Nuovo eroe Peppino, console curata, nuovo cursore
+Richiesta dell'utente: cursore d'attacco meno retrò, un eroe corpo a corpo "Peppino" con spada e scudo forte come
+Kael, console di gioco più curata (riferimento Dota 2, stessi elementi e posizioni).
+- Dati degli eroi in `Game.HEROES` (Kael e Peppino), scelta nel menu (`settings.hero`), in rete nel saluto del client.
+- [[peppino]]: modello Knight con elmo dorato e scudo a goccia; Fendente rotante, Carica (scatto con stordimento),
+  Scudo di ferro (riduzione danni), Spaccaterra (crepa in linea). Nuovi effetti, icone a shader, suoni esistenti.
+- Strumento `--duel` per i duelli simulati; taratura di Peppino fino a 40–40, 48–32, 40–40, 44–36 (vedi [[bilanciamento]]).
+- Console: `console.gdshader`, `slot.gdshader`, `bar.gdshader`, ritratto e tacche rifatti (vedi [[interfaccia]]).
+- Cursori `Cursors.gd`: spada e mirino antialias.
+
+## [2026-10-22] test | Verifica di Peppino e della nuova console
+Autotest OK (con la nuova sezione su Peppino); test di rete 6/6 OK, compreso un client con Peppino (vedi
+[[test-di-rete]]); A/B in Media: 84 FPS contro 86, +0.17 ms di GPU (vedi [[benchmark]]). Screenshot e `--views-fx`
+di Peppino controllati.

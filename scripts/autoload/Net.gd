@@ -69,7 +69,7 @@ func host(port: int) -> Error:
 		return err
 	multiplayer.multiplayer_peer = peer
 	is_host = true
-	lobby = {1: {"name": Game.player_name, "ready": false}}
+	lobby = {1: {"name": Game.player_name, "ready": false, "hero": str(Game.settings.hero)}}
 	lobby_changed.emit()
 	return OK
 
@@ -149,7 +149,7 @@ func _on_connected_to_server() -> void:
 	var p := peer.get_peer(1)
 	if p:
 		p.set_timeout(32, 5000, 8000)
-	_send(func(): _hello.rpc_id(1, Game.VERSION, Game.player_name), true)
+	_send(func(): _hello.rpc_id(1, Game.VERSION, Game.player_name, str(Game.settings.hero)), true)
 	connected.emit()
 
 
@@ -168,7 +168,7 @@ func _on_server_disconnected() -> void:
 # --- Lobby -------------------------------------------------------------------------
 
 @rpc("any_peer", "call_remote", "reliable", 0)
-func _hello(version: String, pname: String) -> void:
+func _hello(version: String, pname: String, hero: String = "kael") -> void:
 	if not is_host:
 		return
 	var id := multiplayer.get_remote_sender_id()
@@ -180,7 +180,7 @@ func _hello(version: String, pname: String) -> void:
 		_reject.rpc_id(id, "La partita è già piena.")
 		_kick_later(id)
 		return
-	lobby[id] = {"name": pname.substr(0, 20), "ready": false}
+	lobby[id] = {"name": pname.substr(0, 20), "ready": false, "hero": hero if Game.HEROES.has(hero) else "kael"}
 	lobby_changed.emit()
 	_lobby_state.rpc(lobby)
 
@@ -247,7 +247,7 @@ func client_loaded() -> void:
 func _client_loaded() -> void:
 	var id := multiplayer.get_remote_sender_id()
 	if is_host and world and lobby.has(id):
-		world.add_remote_player(id, lobby[id].name)
+		world.add_remote_player(id, lobby[id].name, str(lobby[id].get("hero", "kael")))
 
 
 # --- Gioco: server -> client ------------------------------------------------------

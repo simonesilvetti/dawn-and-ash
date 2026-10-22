@@ -186,3 +186,7 @@ GPU: Intel(R) Iris(R) Xe Graphics (ADL GT2) · risoluzione (1600, 900) · durata
 > Nota (2026-10-21 notte): la misura "finale, base della Lega" è stata fatta con la CPU rallentata (tick sim ~1.9 ms
 > invece di ~1). A/B nelle stesse condizioni, base della Lega, Media, 15 s: commit di partenza `7089eca` 80 e 77 FPS
 > (GPU 9.5–9.6 ms), versione finale 74 e 74 FPS (GPU 9.8 ms). Differenza di GPU ~0.2 ms, nel rumore.
+
+> Nota (2026-10-22): Peppino, nuova console e cursori. A/B nelle stesse condizioni (Media, 20 s, centro): versione
+> nuova 84 e 84 FPS (GPU 11.03 e 11.01 ms), commit di partenza `9e0e222` 86 FPS (GPU 10.85 ms). Costo degli shader
+> della console (alloggiamenti, cornice, barre) ~0.17 ms di GPU.

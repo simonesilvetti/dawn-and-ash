@@ -86,3 +86,16 @@ la giocabilità, e un HUD migliore. Piano e dettagli: `wiki/concepts/piano-grafi
   3D del vero modello (risolve il ritratto disegnato che non somigliava a Kael); negozio sopra il pannello.
 - **Import delle texture**: compressione VRAM + mipmap obbligatorie (senza, il preset Media perdeva un terzo degli FPS).
 - **Preset Media**: erba al 30%, ombre dei piccoli oggetti di scena disattivate, niente filtro anisotropico sul terreno.
+
+## Secondo eroe: Peppino (2026-10-22)
+Richiesta dell'utente: un guerriero corpo a corpo con spada e scudo, forte quanto Kael, abilità a scelta.
+- **Abilità**: Fendente rotante (danno ad area attorno a sé), Carica (scatto verso un punto con stordimento:
+  il corpo a corpo ha bisogno di avvicinarsi), Scudo di ferro (riduzione dei danni temporanea), Spaccaterra
+  (ultimate in linea con stordimento, istantanea, contro la meteora ritardata ma ad area di Kael).
+- **Modello**: KayKit Knight come i creep corpo a corpo della Lega, distinto da scala, elmo dorato (violaceo per il
+  Culto), mantello dell'eroe e scudo a goccia; nessun nuovo asset da scaricare.
+- **Equilibrio** verificato con duelli simulati (`--duel`), non solo a occhio; numeri in `Game.HEROES.peppino`.
+- **Dati per eroe**: `Game.HERO`/`Game.ABILITIES` sostituiti da `Game.HEROES[id]`; l'id dell'eroe viaggia in
+  `Unit.subtype` (già presente nell'evento spawn), quindi il protocollo di rete cambia solo nel saluto del client.
+- **Console e cursori**: shader dell'interfaccia (economici, ~0.17 ms di GPU) invece di texture dipinte, coerenti con le
+  icone procedurali esistenti.

@@ -129,7 +129,7 @@ func _ready() -> void:
 		sim = Sim.new(mode == Game.Mode.TRAINING)
 		units = sim.units
 		hero_data = sim.heroes
-		sim.add_hero(local_peer, Game.Team.RADIANT, Game.player_name)
+		sim.add_hero(local_peer, Game.Team.RADIANT, Game.player_name, str(Game.settings.hero))
 		_flush_events()
 		if mode == Game.Mode.TRAINING:
 			running = true
@@ -174,6 +174,16 @@ func _build_target_rings() -> void:
 
 func local_hero_data() -> HeroData:
 	return hero_data.get(local_peer)
+
+
+## Id dell'eroe locale (prima che arrivi lo stato dal server vale la scelta del menu).
+func local_hero_id() -> String:
+	var hd := local_hero_data()
+	return hd.hero if hd else str(Game.settings.hero)
+
+
+func local_abilities() -> Array:
+	return Game.hero_abilities(local_hero_id())
 
 
 func local_hero_unit() -> Unit:
@@ -316,11 +326,11 @@ func _client_process(delta: float) -> void:
 # Server: giocatori remoti
 # ============================================================================
 
-func add_remote_player(peer: int, pname: String) -> void:
+func add_remote_player(peer: int, pname: String, hero: String = "kael") -> void:
 	if not is_server or _remote_peers.has(peer):
 		return
 	Game.opponent_name = pname
-	sim.add_hero(peer, Game.Team.DIRE, pname)
+	sim.add_hero(peer, Game.Team.DIRE, pname, hero)
 	# stato iniziale completo, poi gli eventi normali
 	var initial := sim.spawn_events_for_all()
 	Net.send_events([peer], sim.tick_n, initial)
@@ -495,7 +505,7 @@ func _interp_pos(id: int, render_t: float) -> Array:
 
 func _local_hero_speed() -> float:
 	var hd := local_hero_data()
-	var s: float = Game.HERO.move_speed
+	var s: float = Game.hero_def(local_hero_id()).move_speed
 	if hd:
 		for it in hd.items:
 			if it != "":
@@ -532,7 +542,7 @@ func _update_prediction(delta: float) -> void:
 			_pred_target = 0
 		else:
 			var tp: Vector2 = _interp_pos(t.id, _clock - Game.INTERP_DELAY)[0]
-			if _pred_pos.distance_to(tp) > Game.HERO.attack_range + u.radius + t.radius:
+			if _pred_pos.distance_to(tp) > u.attack_range + u.radius + t.radius:
 				goal = tp
 	elif _pred_has_goal:
 		goal = _pred_goal
@@ -625,7 +635,7 @@ func _apply_events(evs: Array) -> void:
 				vfx.end_projectile(int(e[1]))
 			"dmg": _ev_dmg(int(e[1]), int(e[2]), int(e[3]), int(e[4]) if e.size() > 4 else 0)
 			"gold": _ev_gold(int(e[1]), int(e[2]), Vector2(e[3], e[4]))
-			"fx": _ev_fx(str(e[1]), Vector2(e[2], e[3]), int(e[4]))
+			"fx": _ev_fx(str(e[1]), Vector2(e[2], e[3]), int(e[4]), e)
 			"notify": _ev_notify(str(e[1]), int(e[2]))
 			"wave":
 				if int(e[1]) == 1:
@@ -655,8 +665,11 @@ func _ev_spawn(e: Array) -> void:
 			u.attack_point = Game.CREEPS[u.kind].attack_point
 			u.move_speed = Game.CREEPS[u.kind].move_speed
 		elif u.is_hero():
-			u.attack_point = Game.HERO.attack_point
-			u.move_speed = Game.HERO.move_speed
+			var h: Dictionary = Game.hero_def(u.subtype)
+			u.attack_point = h.attack_point
+			u.attack_range = h.attack_range
+			u.projectile_speed = h.projectile_speed
+			u.move_speed = h.move_speed
 		units[id] = u
 		_buffers[id] = [[_clock - Game.INTERP_DELAY, u.pos, u.facing]]
 	if views.has(id):
@@ -671,16 +684,16 @@ func _ev_spawn(e: Array) -> void:
 
 func _radius_for(u: Unit) -> float:
 	if u.is_hero():
-		return Game.HERO.radius
+		return Game.hero_def(u.subtype).radius
 	if u.is_creep():
 		return Game.CREEPS[u.kind].radius
 	return Game.BUILDINGS.get(u.subtype, {"radius": 1.0}).radius
 
 
 func _get_view(u: Unit) -> UnitView:
-	var key := UnitView.make_key(u.kind, u.team)
+	var key := UnitView.make_key(u.kind, u.team, u.subtype)
 	var v: UnitView = null
-	if key != "building" and key != "hero":
+	if key != "building" and not key.begins_with("hero"):
 		var pool: Array = _view_pool.get(key, [])
 		if not pool.is_empty():
 			v = pool.pop_back()
@@ -769,7 +782,7 @@ func _ev_respawn(id: int, p: Vector2) -> void:
 	if u and u.owner_peer == local_peer:
 		_pred_active = false
 		cam.center_on(MapData.to3(p), true)
-		hud.notify("Il fuoco di Aethra arde in me!", Color(1, 0.7, 0.35))
+		hud.notify(Game.hero_def(u.subtype).respawn_line, Color(1, 0.7, 0.35))
 
 
 func _ev_attack(id: int, target: int) -> void:
@@ -801,7 +814,7 @@ func _ev_cast(id: int, slot: int) -> void:
 	var u: Unit = units.get(id)
 	if u and u.owner_peer == local_peer:
 		_last_combat_time = game_time
-	if v and slot == 0:
+	if v and slot == 0 and u and u.subtype == "kael":
 		Audio.play_3d("fireball_cast", v.vis_pos)
 
 
@@ -814,7 +827,7 @@ func _ev_proj(e: Array) -> void:
 	if src and src.is_building():
 		start.y = 6.5 if src.kind == Game.Kind.TOWER else 3.0
 	var dir := Vector3(e[7], 0, e[8])
-	vfx.spawn_projectile(pid, ptype, team, start, int(e[4]), dir, float(e[9]), Game.ABILITIES[0].range if ptype == "fireball" else 0.0)
+	vfx.spawn_projectile(pid, ptype, team, start, int(e[4]), dir, float(e[9]), Game.hero_abilities("kael")[0].range if ptype == "fireball" else 0.0)
 	if _near_camera(start, 45.0):
 		match ptype:
 			"bolt": Audio.play_3d("bolt_cast_%d" % randi_range(1, 2), start, -4.0)
@@ -841,7 +854,10 @@ func _ev_dmg(target: int, amount: int, kind: int, src: int) -> void:
 		overlay.add_number(v.vis_pos + Vector3(0, v.height, 0), str(amount), col, 1.0 if kind == 0 else 1.25)
 	if src == local_id or target == local_id:
 		_last_combat_time = game_time
-		Audio.play_3d("bolt_hit_%d" % randi_range(1, 2) if kind == 0 else "explosion_1", v.vis_pos, -6.0)
+		var su: Unit = units.get(src)
+		var melee := su != null and su.is_hero() and not su.is_ranged()
+		var snd := ("hit_melee_%d" % randi_range(1, 3) if melee else "bolt_hit_%d" % randi_range(1, 2)) if kind == 0 else "explosion_1"
+		Audio.play_3d(snd, v.vis_pos, -6.0)
 
 
 func _ev_gold(unit_id: int, amount: int, p: Vector2) -> void:
@@ -855,13 +871,21 @@ func _ev_gold(unit_id: int, amount: int, p: Vector2) -> void:
 		hud.fly_coins(cam.camera.unproject_position(wp), clampi(amount / 15, 2, 6))
 
 
-func _ev_fx(name: String, p: Vector2, src: int) -> void:
+func _ev_fx(name: String, p: Vector2, src: int, e: Array = []) -> void:
 	var u: Unit = units.get(src)
 	var team := u.team if u else 0
 	var p3 := MapData.to3(p)
 	match name:
 		"meteor_warn":
-			vfx.meteor_warning(p3, Game.ABILITIES[3].aoe, Game.ABILITIES[3].delay)
+			var mab: Dictionary = Game.hero_abilities("kael")[3]
+			vfx.meteor_warning(p3, mab.aoe, mab.delay)
+			return
+		"earthsplit":
+			if e.size() >= 7:
+				var b3 := MapData.to3(Vector2(e[5], e[6]))
+				vfx.earthsplit(p3, b3, team)
+				Audio.play_3d("big_explosion", p3.lerp(b3, 0.4), 1.0)
+				_hit_stop(0.05)
 			return
 		"blink_in":
 			if u and u.owner_peer == local_peer:
@@ -874,6 +898,15 @@ func _ev_fx(name: String, p: Vector2, src: int) -> void:
 		"explosion": Audio.play_3d("explosion_%d" % randi_range(1, 2), p3)
 		"blink_out": Audio.play_3d("blink", p3)
 		"shockwave": Audio.play_3d("shockwave", p3)
+		"cleave": Audio.play_3d("hit_melee_%d" % randi_range(1, 3), p3, 2.0)
+		"charge_start":
+			Audio.play_3d("blink", p3, -4.0)
+			if e.size() >= 7:
+				vfx.charge_trail(p3, MapData.to3(Vector2(e[5], e[6])), Game.hero_abilities("peppino")[1].speed)
+		"charge_hit":
+			Audio.play_3d("explosion_1", p3, -2.0)
+			_hit_stop(0.03)
+		"iron_shield": Audio.play_3d("tower_hit", p3, -2.0)
 		"meteor_hit":
 			Audio.play_3d("big_explosion", p3, 3.0)
 			_hit_stop(0.06)
@@ -982,7 +1015,8 @@ func _update_views(delta: float) -> void:
 			if local_hd and id == local_hd.unit_id and _pred_active:
 				moving = (v.vis_pos - p3).length() > 0.01
 		var speed := u.current_move_speed() if is_server else (_local_hero_speed() if u.is_hero() else u.move_speed)
-		v.update_visual(delta, p3, f, moving, speed, u.invulnerable, stunned)
+		var shielded := (u.shield_time > 0.0) if is_server else (u.flags & Unit.F_SHIELDED) != 0
+		v.update_visual(delta, p3, f, moving, speed, u.invulnerable, stunned, shielded)
 		if v.anim and v.kind != Game.Kind.HERO:
 			var dx := p.x - cam_focus.x
 			var dz := p.y - cam_focus.z
@@ -1011,7 +1045,7 @@ func send_command(cmd: Array) -> void:
 		# predizione locale
 		match cmd[0]:
 			"move", "amove":
-				_pred_goal = MapData.clamp_walkable(Vector2(cmd[1], cmd[2]), Game.HERO.radius)
+				_pred_goal = MapData.clamp_walkable(Vector2(cmd[1], cmd[2]), Game.hero_def(local_hero_id()).radius)
 				_pred_has_goal = true
 				_pred_target = 0
 			"attack":
@@ -1075,7 +1109,7 @@ func _update_targeting_rings() -> void:
 	_aoe_ring.visible = false
 	if not show:
 		return
-	var ab: Dictionary = Game.ABILITIES[targeting_slot]
+	var ab: Dictionary = local_abilities()[targeting_slot]
 	var hp := local_hero_pos3()
 	var r: float = ab.range if ab.range > 0.0 else ab.get("aoe", 3.0)
 	_range_ring.position = hp + Vector3(0, 0.1, 0)
@@ -1178,7 +1212,7 @@ func try_ability(i: int) -> void:
 	var u := local_hero_unit()
 	if hd == null or u == null or not u.alive:
 		return
-	var ab: Dictionary = Game.ABILITIES[i]
+	var ab: Dictionary = local_abilities()[i]
 	var lvl: int = hd.ability_levels[i]
 	if lvl <= 0:
 		hud.notify("Abilità non ancora appresa (Ctrl+%s)" % ab.key, Color(1, 0.6, 0.4))

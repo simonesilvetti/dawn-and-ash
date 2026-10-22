@@ -90,7 +90,7 @@ func warmup() -> void:
 			var n := _take("proj_" + t, _proj_factory(t))
 			n.position = Vector3(0, -40, 0)
 			tmp.append(n)
-	for k in ["blast", "blast_dire", "big_blast", "burst_fire", "burst_violet", "burst_gold", "burst_heal", "burst_dust", "ring", "column", "meteor", "flame_wall", "sparks", "dust", "debris"]:
+	for k in ["blast", "blast_dire", "big_blast", "burst_fire", "burst_violet", "burst_gold", "burst_heal", "burst_dust", "ring", "column", "meteor", "flame_wall", "sparks", "dust", "debris", "crack"]:
 		var e: Node3D = _take("fx_" + k, _fx_factory(k))
 		e.position = Vector3(0, -40, 0)
 		_restart(e)
@@ -326,6 +326,18 @@ func _fx_factory(kind: String) -> Callable:
 				mi.material_override = m
 				mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 				return mi
+			"crack":
+				var mi := MeshInstance3D.new()
+				var q := QuadMesh.new()
+				q.size = Vector2.ONE
+				q.orientation = PlaneMesh.FACE_Y
+				mi.mesh = q
+				var m := ShaderMaterial.new()
+				m.shader = load("res://scripts/vfx/crack.gdshader")
+				m.set_shader_parameter("noise_tex", VfxLib.noise_tex())
+				mi.material_override = m
+				mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+				return mi
 			"meteor":
 				var root := Node3D.new()
 				var rock := MeshInstance3D.new()
@@ -529,8 +541,106 @@ func effect(name: String, pos: Vector3, team: int) -> void:
 			_flash_light(pos + Vector3(0, 5, 0), Color(1.0, 0.7, 0.4), 16.0, 40.0, 1.5)
 			_scorch(pos, 9.0, 20.0)
 			shake = 1.2
-		"hit_spark":
-			pass
+		# --- Peppino ---
+		"cleave":
+			# fendente rotante: vortice d'aria tagliente (muro basso), anello d'acciaio, scintille e polvere
+			_flame_wall(pos, Color(0.45, 0.6, 0.9), 1.0, 3.3, 0.9, 0.35)
+			_ring(pos, Color(0.92, 0.96, 1.0, 1.0), 1.0, 3.5, 0.32, 0.4, 0.3)
+			_ring(pos, Color(fire, 0.9), 0.6, 3.1, 0.38, 0.12)
+			_spark_burst(pos + Vector3(0, 1.0, 0))
+			if quality >= 1:
+				_group("dust", pos)
+			shake = maxf(shake, 0.12)
+		"charge_start":
+			_ring(pos, Color(0.85, 0.8, 0.7, 0.8), 0.4, 1.8, 0.3, 0.2)
+		"charge_hit":
+			_ring(pos, Color(1.0, 0.9, 0.6, 1.0), 0.5, 2.8, 0.35, 0.25, 0.2)
+			_particles("burst_dust", pos)
+			_spark_burst(pos + Vector3(0, 0.8, 0))
+			if quality >= 1:
+				_group("dust", pos)
+			_flash_light(pos, Color(1.0, 0.85, 0.55), 4.0, 7.0, 0.3)
+			shake = maxf(shake, 0.3)
+		"iron_shield":
+			var gold := Color(1.0, 0.82, 0.4) if team == 0 else Color(0.8, 0.55, 1.0)
+			_column(pos, Color(gold, 0.8), 1.2, 3.5, 0.45)
+			_ring(pos, Color(gold, 1.0), 1.8, 1.0, 0.4, 0.2, 0.2)
+			_particles("burst_gold", pos)
+
+
+## Scintille di un colpo d'arma (ignora il limite di hit_sparks: sono eventi rari).
+func _spark_burst(pos: Vector3) -> void:
+	if quality < 1:
+		return
+	var n := _take("fx_sparks", _fx_factory("sparks"))
+	n.position = pos
+	_restart(n)
+	_active.append({"node": n, "t": 0.0, "dur": 0.6, "kind": "particles"})
+
+
+## Spaccaterra: una crepa incandescente si apre da a verso b, con rocce e polvere che si propagano.
+func earthsplit(a: Vector3, b: Vector3, team: int) -> void:
+	var glow := Color(1.0, 0.5, 0.12) if team == 0 else Color(0.72, 0.32, 1.0)
+	var steps := 5
+	for i in steps:
+		var p := a.lerp(b, (i + 0.6) / steps)
+		var spawn := func():
+			if quality >= 1:
+				_group("debris", p + Vector3(0, 0.3, 0))
+			_group("dust", p)
+		if i == 0:
+			spawn.call()
+		else:
+			get_tree().create_timer(0.045 * i).timeout.connect(spawn)
+	# linea luminosa che si "apre" verso la punta e poi si raffredda
+	var mi := _take("fx_crack", _fx_factory("crack")) as MeshInstance3D
+	var dir := b - a
+	mi.position = (a + b) * 0.5 + Vector3(0, 0.12, 0)
+	mi.rotation = Vector3(0, atan2(-dir.z, dir.x), 0)
+	mi.scale = Vector3(0.01, 1, 3.2)
+	var m := mi.material_override as ShaderMaterial
+	m.set_shader_parameter("color", glow)
+	m.set_shader_parameter("seed", randf() * 10.0)
+	m.set_shader_parameter("fade", 1.0)
+	_active.append({"node": mi, "t": 0.0, "dur": 2.2, "kind": "crack", "len": dir.length(), "a": a, "dir": dir})
+	_ring(a, Color(glow, 1.0), 0.6, 3.0, 0.4, 0.22, 0.25)
+	_crack(a, b, 2.4, 7.0)
+	_flash_light(a.lerp(b, 0.35), glow, 8.0, 14.0, 0.5)
+	shake = maxf(shake, 0.55)
+
+
+## Scia della Carica: sbuffi di polvere lungo il percorso, nell'ordine in cui Peppino li attraversa.
+func charge_trail(a: Vector3, b: Vector3, speed: float) -> void:
+	var dist := a.distance_to(b)
+	var steps := clampi(int(dist / 2.0), 1, 5)
+	for i in steps:
+		var p := a.lerp(b, float(i) / steps)
+		var delay := dist * float(i) / steps / maxf(speed, 1.0)
+		var spawn := func():
+			if quality >= 1:
+				_group("dust", p)
+			_ring(p, Color(0.9, 0.85, 0.75, 0.7), 0.3, 1.3, 0.35, 0.25)
+		if delay <= 0.0:
+			spawn.call()
+		else:
+			get_tree().create_timer(delay).timeout.connect(spawn)
+
+
+## Solco scuro a terra lungo un segmento (Decal allungato, solo da qualità media).
+func _crack(a: Vector3, b: Vector3, width: float, dur: float) -> void:
+	if _decals.is_empty():
+		return
+	var i := _decal_next
+	_decal_next = (_decal_next + 1) % MAX_DECALS
+	var d := _decals[i]
+	var dir := b - a
+	d.position = (a + b) * 0.5
+	d.rotation = Vector3(0, atan2(-dir.z, dir.x), 0)
+	d.size = Vector3(dir.length() + 1.0, 3.0, width)
+	d.modulate = Color(1, 1, 1, 1)
+	d.visible = true
+	d.set_meta("dur", dur)
+	_decal_t[i] = dur
 
 
 func _particles(kind: String, pos: Vector3) -> void:
@@ -561,6 +671,14 @@ func _process(delta: float) -> void:
 				(a.node.material_override as ShaderMaterial).set_shader_parameter("fade", 1.0 - k * k)
 			"meteor":
 				a.node.position = (a.from as Vector3).lerp(a.to, k * k)
+			"crack":
+				# si apre in 0.25 s dalla base verso la punta, poi si raffredda
+				var open_k: float = clampf(a.t / 0.25, 0.0, 1.0)
+				var l: float = maxf(0.01, float(a.len) * open_k)
+				var dir3: Vector3 = a.dir
+				a.node.position = (a.a as Vector3) + dir3.normalized() * l * 0.5 + Vector3(0, 0.12, 0)
+				a.node.scale = Vector3(l, 1, 3.2)
+				(a.node.material_override as ShaderMaterial).set_shader_parameter("fade", 1.0 - smoothstep(0.15, 1.0, k))
 		if a.t >= a.dur:
 			if a.kind == "sparks":
 				_sparks_active -= 1

@@ -28,24 +28,123 @@ const LANE_HALF_WIDTH := 15.0
 const BASE_RADIUS := 26.0
 const MAP_HALF := 130.0
 
-# --- Eroe: Kael, il Piromante -------------------------------------------------
-const HERO := {
-	"name": "Kael",
-	"title": "il Piromante",
-	"hp": 600.0, "hp_per_lvl": 80.0,
-	"hp_regen": 2.0, "hp_regen_per_lvl": 0.2,
-	"mana": 300.0, "mana_per_lvl": 40.0,
-	"mana_regen": 1.5, "mana_regen_per_lvl": 0.15,
-	"damage": 45.0, "damage_per_lvl": 4.0,
-	"attack_interval": 1.3, "attack_interval_per_lvl": -0.03, "attack_interval_min": 0.7,
-	"attack_range": 6.0, "attack_point": 0.3,
-	"projectile_speed": 22.0,
-	"move_speed": 7.0,
-	"armor": 2.0, "armor_per_lvl": 0.3,
-	"magic_resist": 0.25,
-	"radius": 0.7,
-	"max_level": 10,
+# --- Eroi -------------------------------------------------------------------
+# Ogni eroe ha statistiche (livello 1, +per livello) e 4 abilità (Q, W, E, R).
+# target delle abilità: "dir" (direzione), "point" (punto), "none" (attorno all'eroe)
+const HERO_MAX_LEVEL := 10
+const HERO_ORDER := ["kael", "peppino"]
+const HEROES := {
+	"kael": {
+		"name": "Kael",
+		"title": "il Piromante",
+		"desc": "Mago a distanza: colpisce da lontano con il fuoco e sfugge con lo scatto.",
+		"model": "Mage",
+		"respawn_line": "Il fuoco di Aethra arde in me!",
+		"hp": 600.0, "hp_per_lvl": 80.0,
+		"hp_regen": 2.0, "hp_regen_per_lvl": 0.2,
+		"mana": 300.0, "mana_per_lvl": 40.0,
+		"mana_regen": 1.5, "mana_regen_per_lvl": 0.15,
+		"damage": 45.0, "damage_per_lvl": 4.0,
+		"attack_interval": 1.3, "attack_interval_per_lvl": -0.03, "attack_interval_min": 0.7,
+		"attack_range": 6.0, "attack_point": 0.3,
+		"projectile_speed": 22.0,
+		"move_speed": 7.0,
+		"armor": 2.0, "armor_per_lvl": 0.3,
+		"magic_resist": 0.25,
+		"radius": 0.7,
+		"abilities": [
+			{
+				"key": "Q", "id": "fireball", "name": "Palla di fuoco",
+				"desc": "Kael scaglia una sfera infuocata in linea retta. Esplode sul primo nemico colpito infliggendo danno magico ad area.",
+				"target": "dir", "range": 14.0, "speed": 25.0, "aoe": 3.0,
+				"damage": [90.0, 150.0, 210.0, 270.0], "mana": [80.0, 80.0, 80.0, 80.0], "cooldown": [6.0, 6.0, 6.0, 6.0],
+				"max_level": 4, "req_level": 1, "cast_point": 0.25,
+			},
+			{
+				"key": "W", "id": "blink", "name": "Scatto",
+				"desc": "Kael svanisce in uno sbuffo di braci e riappare in un vortice di fiamme nel punto indicato.",
+				"target": "point", "range": 10.0,
+				"damage": [0.0, 0.0, 0.0, 0.0], "mana": [60.0, 60.0, 60.0, 60.0], "cooldown": [14.0, 12.0, 10.0, 8.0],
+				"max_level": 4, "req_level": 1, "cast_point": 0.1,
+			},
+			{
+				"key": "E", "id": "shockwave", "name": "Onda d'urto",
+				"desc": "Kael pianta il bastone a terra: un anello di fuoco arcano danneggia e rallenta del 40% i nemici vicini per 2 secondi.",
+				"target": "none", "range": 0.0, "aoe": 5.0, "slow": 0.4, "slow_time": 2.0,
+				"damage": [60.0, 100.0, 140.0, 180.0], "mana": [100.0, 100.0, 100.0, 100.0], "cooldown": [10.0, 10.0, 10.0, 10.0],
+				"max_level": 4, "req_level": 1, "cast_point": 0.3,
+			},
+			{
+				"key": "R", "id": "meteor", "name": "Meteora",
+				"desc": "Kael evoca un frammento di cristallo infuocato dal cielo: dopo 1 secondo colpisce l'area, infliggendo danno enorme e stordendo.",
+				"target": "point", "range": 16.0, "aoe": 6.0, "delay": 1.0, "stun": 1.5, "walk_to_range": true,
+				"damage": [300.0, 450.0, 600.0], "mana": [200.0, 200.0, 200.0], "cooldown": [60.0, 50.0, 40.0],
+				"max_level": 3, "req_level": 6, "cast_point": 0.4,
+			},
+		],
+	},
+	"peppino": {
+		"name": "Peppino",
+		"title": "il Guerriero",
+		"desc": "Guerriero corpo a corpo con spada e scudo: robusto, si lancia sui nemici e li stordisce.",
+		"model": "Knight",
+		"respawn_line": "Lo scudo non si piega!",
+		"hp": 660.0, "hp_per_lvl": 82.0,
+		"hp_regen": 2.5, "hp_regen_per_lvl": 0.25,
+		"mana": 250.0, "mana_per_lvl": 30.0,
+		"mana_regen": 1.3, "mana_regen_per_lvl": 0.12,
+		"damage": 50.0, "damage_per_lvl": 3.7,
+		"attack_interval": 1.35, "attack_interval_per_lvl": -0.035, "attack_interval_min": 0.75,
+		"attack_range": 1.6, "attack_point": 0.35,
+		"projectile_speed": 0.0,
+		"move_speed": 7.3,
+		"armor": 4.0, "armor_per_lvl": 0.3,
+		"magic_resist": 0.25,
+		"radius": 0.7,
+		"abilities": [
+			{
+				"key": "Q", "id": "cleave", "name": "Fendente rotante",
+				"desc": "Peppino ruota su sé stesso con la spada tesa: danno magico a tutti i nemici attorno.",
+				"target": "none", "range": 0.0, "aoe": 3.2,
+				"damage": [85.0, 140.0, 195.0, 250.0], "mana": [75.0, 75.0, 75.0, 75.0], "cooldown": [7.0, 7.0, 7.0, 7.0],
+				"max_level": 4, "req_level": 1, "cast_point": 0.25,
+			},
+			{
+				"key": "W", "id": "charge", "name": "Carica",
+				"desc": "Peppino si lancia con lo scudo avanti fino al punto indicato: all'arrivo danneggia e stordisce i nemici vicini.",
+				"target": "point", "range": 9.0, "aoe": 2.4, "speed": 34.0,
+				"stun": [0.7, 0.85, 1.0, 1.15],
+				"damage": [50.0, 75.0, 100.0, 125.0], "mana": [70.0, 70.0, 70.0, 70.0], "cooldown": [16.0, 14.0, 12.0, 10.0],
+				"max_level": 4, "req_level": 1, "cast_point": 0.1,
+			},
+			{
+				"key": "E", "id": "iron_shield", "name": "Scudo di ferro",
+				"desc": "Peppino alza lo scudo benedetto: per 4 secondi subisce meno danni.",
+				"target": "none", "range": 0.0, "duration": 4.0,
+				"reduction": [0.2, 0.28, 0.36, 0.44],
+				"damage": [0.0, 0.0, 0.0, 0.0], "mana": [80.0, 80.0, 80.0, 80.0], "cooldown": [15.0, 15.0, 15.0, 15.0],
+				"max_level": 4, "req_level": 1, "cast_point": 0.15,
+			},
+			{
+				"key": "R", "id": "earthsplit", "name": "Spaccaterra",
+				"desc": "Peppino abbatte la spada al suolo: una crepa si apre in linea retta, danneggiando e stordendo i nemici sul suo percorso.",
+				"target": "dir", "range": 12.0, "width": 2.2, "stun": 1.6,
+				"damage": [260.0, 400.0, 540.0], "mana": [180.0, 180.0, 180.0], "cooldown": [60.0, 50.0, 40.0],
+				"max_level": 3, "req_level": 6, "cast_point": 0.5,
+			},
+		],
+	},
 }
+
+
+static func hero_def(id: String) -> Dictionary:
+	return HEROES.get(id, HEROES.kael)
+
+
+static func hero_abilities(id: String) -> Array:
+	return hero_def(id).abilities
+
+
 const XP_RANGE := 12.0
 const XP_CREEP := 40
 const XP_TOWER := 150
@@ -64,39 +163,6 @@ static func xp_to_next(level: int) -> int:
 
 static func armor_multiplier(armor: float) -> float:
 	return 1.0 - (0.06 * armor) / (1.0 + 0.06 * absf(armor))
-
-# --- Abilità -----------------------------------------------------------------
-# target: "dir" (direzione), "point" (punto), "none" (attorno all'eroe)
-const ABILITIES := [
-	{
-		"key": "Q", "id": "fireball", "name": "Palla di fuoco",
-		"desc": "Kael scaglia una sfera infuocata in linea retta. Esplode sul primo nemico colpito infliggendo danno magico ad area.",
-		"target": "dir", "range": 14.0, "speed": 25.0, "aoe": 3.0,
-		"damage": [90.0, 150.0, 210.0, 270.0], "mana": [80.0, 80.0, 80.0, 80.0], "cooldown": [6.0, 6.0, 6.0, 6.0],
-		"max_level": 4, "req_level": 1, "cast_point": 0.25,
-	},
-	{
-		"key": "W", "id": "blink", "name": "Scatto",
-		"desc": "Kael svanisce in uno sbuffo di braci e riappare in un vortice di fiamme nel punto indicato.",
-		"target": "point", "range": 10.0,
-		"damage": [0.0, 0.0, 0.0, 0.0], "mana": [60.0, 60.0, 60.0, 60.0], "cooldown": [14.0, 12.0, 10.0, 8.0],
-		"max_level": 4, "req_level": 1, "cast_point": 0.1,
-	},
-	{
-		"key": "E", "id": "shockwave", "name": "Onda d'urto",
-		"desc": "Kael pianta il bastone a terra: un anello di fuoco arcano danneggia e rallenta del 40% i nemici vicini per 2 secondi.",
-		"target": "none", "range": 0.0, "aoe": 5.0, "slow": 0.4, "slow_time": 2.0,
-		"damage": [60.0, 100.0, 140.0, 180.0], "mana": [100.0, 100.0, 100.0, 100.0], "cooldown": [10.0, 10.0, 10.0, 10.0],
-		"max_level": 4, "req_level": 1, "cast_point": 0.3,
-	},
-	{
-		"key": "R", "id": "meteor", "name": "Meteora",
-		"desc": "Kael evoca un frammento di cristallo infuocato dal cielo: dopo 1 secondo colpisce l'area, infliggendo danno enorme e stordendo.",
-		"target": "point", "range": 16.0, "aoe": 6.0, "delay": 1.0, "stun": 1.5,
-		"damage": [300.0, 450.0, 600.0], "mana": [200.0, 200.0, 200.0], "cooldown": [60.0, 50.0, 40.0],
-		"max_level": 3, "req_level": 6, "cast_point": 0.4,
-	},
-]
 
 # --- Creep -------------------------------------------------------------------
 const WAVE_INTERVAL := 30.0
@@ -178,6 +244,7 @@ var settings := {
 	"last_ip": "127.0.0.1",
 	"last_port": 7777,
 	"player_name": "Giocatore",
+	"hero": "kael",
 }
 
 signal settings_changed
@@ -199,6 +266,9 @@ func _ready() -> void:
 	user_args = OS.get_cmdline_user_args()
 	_setup_input()
 	load_settings()
+	# --hero <id>: eroe scelto da riga di comando (test), senza salvarlo
+	if HEROES.has(arg_value("--hero")):
+		settings.hero = arg_value("--hero")
 	apply_settings()
 
 

@@ -2,7 +2,7 @@
 title: Indice del wiki
 type: overview
 tags: [indice]
-updated: 2026-10-21
+updated: 2026-10-22
 sources: []
 ---
 
@@ -21,12 +21,13 @@ Catalogo di tutte le pagine. Leggere questo file per primo; la cronologia è in 
 
 ## Entità del gioco
 
-- [[abilita]] — **Abilità di Kael**: tabella di Q/W/E/R con danni, mana e ricariche; regole di apprendimento e mira.
+- [[abilita]] — **Abilità degli eroi**: tabella di Q/W/E/R di Kael con danni, mana e ricariche; regole di apprendimento e mira comuni a tutti gli eroi.
 - [[creep]] — **Creep**: Ondata ogni 30 s (la prima a 5 s): 3 corpo a corpo + 1 a distanza per squadra; dalla 5ª ondata, ogni 5, anche un creep d'assedio (Fase 2).
 - [[culto-della-cenere]] — **Culto della Cenere (Dire)**: Scheletri e creature nate dalle rovine bruciate. Base in alto a destra. Colori: rosso-viola (Game.TEAM_COLORS[1]).
 - [[edifici]] — **Edifici: torri, Antico, fontana**: statistiche, protezione a cascata, aggro delle torri, fontana e negozio, crollo.
-- [[kael]] — **Kael, il Piromante**: Giovane mago della lega-dell-alba che ha imparato a domare il fuoco dei cristalli. È l'unico eroe: in 1 contro 1 entrambi i giocatori...
+- [[kael]] — **Kael, il Piromante**: giovane mago a distanza della lega-dell-alba che doma il fuoco dei cristalli; uno dei due eroi selezionabili.
 - [[lega-dell-alba]] — **Lega dell'Alba (Radiant)**: Cavalieri e maghi delle foreste dorate. Base in basso a sinistra della mappa (MapData.BASE_CENTER[0]). Colori: verde-acqua con dettagli...
+- [[peppino]] — **Peppino, il Guerriero**: guerriero corpo a corpo con spada e scudo (modello Knight, elmo dorato); Fendente rotante, Carica, Scudo di ferro, Spaccaterra; bilanciato con Kael tramite duelli simulati.
 - [[meteora]] — **Meteora (R, ultimate)**: Fase 2. Disponibile dal livello 6. Se il punto è oltre 16 m Kael cammina fino a gittata. Cerchio rosso di avviso, dopo 1 s cade un...
 - [[oggetti]] — **Oggetti e negozio**: Negozio con il tasto B, utilizzabile entro 18 m dalla propria fontana. Massimo 6 oggetti. Vendita al 50% con click destro sull'oggetto.
 - [[onda-d-urto]] — **Onda d'urto (E)**: Kael pianta il bastone a terra: anello di fuoco arcano di 5 m, danno magico 60/100/140/180 e rallentamento del 40% per 2 s. Effetti:...
@@ -36,7 +37,7 @@ Catalogo di tutte le pagine. Leggere questo file per primo; la cronologia è in 
 ## Concetti
 
 - [[ambientazione]] — **Ambientazione: le Terre di Aethra**: Nelle Terre di Aethra due antichi cristalli, gli Antichi, alimentano due regni rivali: chi distrugge il cristallo nemico vince la guerra.
-- [[bilanciamento]] — **Bilanciamento**: Tutti i numeri stanno in scripts/autoload/Game.gd: è la fonte di verità. Le tabelle sono in kael, abilita, creep, edifici, oggetti.
+- [[bilanciamento]] — **Bilanciamento**: tutti i numeri stanno in scripts/autoload/Game.gd (eroi in Game.HEROES); formule; duelli simulati Kael–Peppino (`--duel`) e taratura.
 - [[controlli]] — **Controlli**: tutti i comandi da tastiera e mouse in stile Dota.
 - [[decisioni]] — **Decisioni prese in autonomia**: L'elenco completo e motivato è in DECISIONS.md (radice del progetto). Le più importanti:
 - [[piano-grafica-v2]] — **Piano "Grafica v2"**: più dettaglio con Dota 2 come riferimento, stesse prestazioni: terreno con texture e rilievo, acqua, vegetazione, basi fortificate, effetti a strati, HUD ornato.
