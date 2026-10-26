@@ -131,3 +131,8 @@ Richiesta dell'utente: distribuire il gioco anche agli utenti Windows. Nuovo pre
 `./build.sh linux|windows`); `tools/fetch_templates.py` accetta le piattaforme; `tools/make_windows_zip.sh` crea lo zip
 con exe, licenza e LEGGIMI. Icona `icon.ico` e metadati scritti da Godot senza rcedit (vedi [[build-e-distribuzione]]).
 Import e autotest OK; l'exe non è ancora stato provato su Windows.
+
+## [2026-10-26] decisione | Versione 0.2.0 e Release con la build Windows
+Versione portata a 0.2.0 (`project.godot`, `Game.VERSION`) per la nuova Release GitHub v0.2.0, che allega l'installer
+`.run` e l'eseguibile Linux più lo zip Windows (vedi [[build-e-distribuzione]]). Il saluto di rete confronta
+`Game.VERSION` (`scripts/autoload/Net.gd`): giocatori 0.1.0 e 0.2.0 non possono giocare insieme in rete.

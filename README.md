@@ -12,7 +12,7 @@ Fatto con **Godot 4.7** e GDScript. Modelli KayKit, texture del terreno ambientC
 
 ### Windows
 
-Scarica `DawnAndAsh-0.1.0-windows-x86_64.zip` (in `build/`, creato da `./build.sh`), estrai la cartella dove vuoi
+Scarica `DawnAndAsh-0.2.0-windows-x86_64.zip` (in `build/`, creato da `./build.sh`), estrai la cartella dove vuoi
 e fai doppio click su `DawnAndAsh.exe`. Non serve installare nulla: per toglierlo basta cancellare la cartella.
 
 - L'eseguibile non è firmato: al primo avvio Windows mostra "Windows ha protetto il PC".
@@ -22,10 +22,10 @@ e fai doppio click su `DawnAndAsh.exe`. Non serve installare nulla: per toglierl
 
 ### Linux
 
-**Installer** (consigliato): scarica `DawnAndAsh-0.1.0-linux-x86_64.run` (in `build/`, creato da `./build.sh`) e avvialo:
+**Installer** (consigliato): scarica `DawnAndAsh-0.2.0-linux-x86_64.run` (in `build/`, creato da `./build.sh`) e avvialo:
 
 ```bash
-sh DawnAndAsh-0.1.0-linux-x86_64.run
+sh DawnAndAsh-0.2.0-linux-x86_64.run
 ```
 
 Non serve essere root né installare altro. Il gioco va in `~/.local/opt/dawn-and-ash`, compare nel menu delle applicazioni

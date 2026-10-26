@@ -25,7 +25,7 @@ sources: [build.sh, run.sh, export_presets.cfg, icon.ico, tools/fetch_templates.
 - Identificativo dell'applicazione: `com.atomicgrove.dawnandash` (`Game.APP_ID`), usato per il file `.desktop` e l'icona.
   Convenzione dell'autore: tutti i suoi programmi usano `com.atomicgrove.<nome>`.
 - Le impostazioni stanno in `~/.local/share/dawn-and-ash/` (`config/custom_user_dir_name` in `project.godot`).
-- Pubblicazione: repository GitHub pubblico `simonesilvetti/dawn-and-ash`; il `.run` e lo zip Windows vanno allegati a ogni Release.
+- Pubblicazione: repository GitHub pubblico `simonesilvetti/dawn-and-ash`; il `.run` e lo zip Windows vanno allegati a ogni Release (dalla v0.2.0).
 - Perché non Flatpak o AppImage: Flatpak richiede che l'utente abbia `flatpak` e scarichi un runtime da centinaia di MB;
   AppImage su molte distribuzioni recenti richiede `libfuse2`, spesso assente. Il `.run` funziona ovunque ci siano `sh` e `tar`.
 - I template ufficiali (1.3 GB) non vengono scaricati per intero: `tools/fetch_templates.py <versione> [linux] [windows]` estrae solo `linux_release.x86_64` / `windows_release_x86_64.exe` e `version.txt` con richieste HTTP Range (~28 MB e ~38 MB compressi) in `~/.local/share/godot/export_templates/4.7.2.stable/`.

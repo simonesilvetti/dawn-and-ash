@@ -2,7 +2,7 @@ extends Node
 ## Stato globale: costanti di gioco e bilanciamento, impostazioni utente, input map.
 ## Tutti i numeri di bilanciamento stanno qui (vedi wiki/concepts/bilanciamento.md).
 
-const VERSION := "0.1.0"
+const VERSION := "0.2.0"
 const APP_ID := "com.atomicgrove.dawnandash"   # identificativo dell'applicazione (.desktop, icona)
 const AUTHOR := "Simone Silvetti"
 const WEBSITE := "simonesilvetti.com"
