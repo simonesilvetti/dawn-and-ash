@@ -2,8 +2,8 @@
 title: Risultati dei test di rete
 type: result
 tags: [rete, lag]
-updated: 2026-10-22
-sources: [tools/net_tests.sh]
+updated: 2026-10-26
+sources: [tools/net_tests.sh, tools/windows_tests.sh]
 ---
 
 # Risultati dei test di rete
@@ -22,6 +22,11 @@ Limiti: errore medio < 0.3 m fino a 150 ms, nessun teletrasporto visivo (< 1.5 m
 Verifica del 2026-10-22 (dopo l'aggiunta di [[peppino]]), 30 s: 0 ms 0.156 m (max 1.27), 80 ms 0.170 (1.46),
 150+jitter+3% 0.197 (2.35, 40 snapshot persi), **Peppino a 80 ms 0.178 (1.49)**, 250+5% 0.211 (1.93, 51 persi);
 banda 8.4 KB/s; salto creep 0.14–0.17 m. Tutti `[OK]`, robustezza compresa.
+
+Linux ↔ Windows (2026-10-26, exe Windows sotto Wine, `tools/windows_tests.sh`, client Peppino, 30 s):
+host Linux + client Windows 0.158 m (max 1.22); host Windows + client Linux 0.159 m (1.22);
+host Windows + client Linux a 150 ms + jitter 30 + 3% 0.210 m (2.13, 36 persi); banda 8.4 KB/s, salto creep 0.14 m.
+Uguali ai numeri tra due Linux: la versione Windows può giocare con quella Linux. Vedi [[build-e-distribuzione]].
 
 Robustezza: client terminato a forza → vittoria a tavolino per l'host, ritorno al menu e nuova partita senza crash.
 

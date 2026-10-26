@@ -3,7 +3,7 @@ title: Build e distribuzione
 type: system
 tags: [build, export]
 updated: 2026-10-26
-sources: [build.sh, run.sh, export_presets.cfg, icon.ico, tools/fetch_templates.py, tools/make_installer.sh, tools/make_windows_zip.sh]
+sources: [build.sh, run.sh, export_presets.cfg, icon.ico, tools/fetch_templates.py, tools/make_installer.sh, tools/make_windows_zip.sh, tools/windows_tests.sh]
 ---
 
 # Build e distribuzione
@@ -33,7 +33,14 @@ sources: [build.sh, run.sh, export_presets.cfg, icon.ico, tools/fetch_templates.
 - Verifica: l'eseguibile esportato e quello installato dal `.run` superano `--autotest-training`; installazione e
   disinstallazione provate in una home finta, `.desktop` valido (`desktop-file-validate`).
 
+## Prova della build Windows
+Senza un PC Windows, `tools/windows_tests.sh` prova l'exe con **Wine** (`sudo pacman -S wine`, ~78 MB da scaricare),
+in un prefisso temporaneo che cancella alla fine. Esito del 2026-10-26 (Wine 11.17, v0.2.0):
+- autotest allenamento sull'exe: `AUTOTEST OK` (tutti i controlli, audio compreso);
+- grafica: Vulkan Forward+ sulla Intel Iris Xe, 24 screenshot identici a quelli Linux (menu, HUD, negozio, VFX, vittoria);
+- rete Linux↔Windows in tutte e due le direzioni, anche a 150 ms con jitter e perdite: numeri come tra due Linux
+  (vedi [[test-di-rete]]).
+
 > [!warning]
-> La build Windows non è ancora stata provata su un PC Windows (qui non c'è Wine). Verificato solo che l'export riesce,
-> che il file è un PE32+ x86-64 GUI e che contiene nome, azienda e versione. Anche la partita in rete tra Linux e
-> Windows è da provare (stesso codice e stesso protocollo, quindi dovrebbe funzionare).
+> Wine non è Windows: avviso SmartScreen, firewall, driver video Windows (e l'eventuale D3D12) restano da provare su
+> un PC Windows vero.

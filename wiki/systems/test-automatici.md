@@ -3,7 +3,7 @@ title: Test automatici
 type: system
 tags: [test, verifica]
 updated: 2026-10-22
-sources: [scripts/debug/AutoTest.gd, tools/net_tests.sh]
+sources: [scripts/debug/AutoTest.gd, tools/net_tests.sh, tools/windows_tests.sh]
 ---
 
 # Test automatici
@@ -14,6 +14,7 @@ Argomenti dopo `--` (vedi intestazione di `AutoTest.gd`):
 |---|---|
 | `godot --headless -- --autotest-training` | edifici, protezioni, acquisti, abilità di Kael (Q, E, W, R), last hit, XP, livelli, oro, torri, deny, assedio; poi un **Peppino** alleato comandato dal test (peer 99): modello, Carica (arrivo e stordimento), Fendente, Scudo di ferro (danno ridotto), Spaccaterra, attacco in mischia; morte/rinascita, vittoria, audio → `AUTOTEST OK`. Usa sempre Kael come eroe locale, qualunque sia la scelta salvata |
 | `./tools/net_tests.sh [s]` | host+client locali con 0, 80, 150+jitter 30+3%, 250+5% ms, più un client con Peppino a 80 ms (verifica che l'host crei l'eroe scelto); poi client terminato a forza → `[OK]` ×6 |
+| `./tools/windows_tests.sh [--no-shots]` | l'exe Windows sotto Wine (prefisso temporaneo): autotest, screenshot con la grafica, rete Linux↔Windows a 0 e 150 ms → `[OK]` ×5 (vedi [[build-e-distribuzione]]) |
 | `godot -- --shots res://screenshots` | 10 screenshot + sequenze di animazione in un SubViewport 1600×900 |
 | `godot -- --views <cartella> [--views-quality Q] [--views-fx] [--views-hero H]` | 7 inquadrature fisse (guado, corsia, riva, basi, torre, insieme) in ~6 s, per la revisione grafica; con `--views-fx` fotogrammi ravvicinati delle 4 abilità dell'eroe (`--views-hero peppino`: anche un primo piano `eroe.png` con l'HUD) |
 | `godot --headless -- --duel [--duel-runs N] [--duel-level L] [--duel-noitems] [--duel-ban <eroe><slot>] [--duel-stats]` | duelli 1 contro 1 tra eroi in simulazione pura (~10 s): vittorie per livello e abilità andate a segno → [[bilanciamento]] |

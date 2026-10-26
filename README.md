@@ -145,6 +145,7 @@ Misure reali in `benchmark_results.md`.
 ```bash
 godot --headless -- --autotest-training          # partita simulata con verifiche → AUTOTEST OK
 ./tools/net_tests.sh                             # rete con 0/80/150/250 ms di lag + chiusura improvvisa del client
+./tools/windows_tests.sh                         # l'exe Windows sotto Wine: autotest, grafica, rete Linux <-> Windows
 godot -- --shots res://screenshots               # screenshot di controllo (menu, scontri, abilità, torre, negozio, vittoria, animazioni)
 godot -- --benchmark                             # FPS per preset → benchmark_results.md
 godot --headless -- --soak --soak-minutes 30     # partita lunga accelerata: memoria, nodi, creep incastrati

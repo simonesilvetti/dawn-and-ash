@@ -136,3 +136,8 @@ Import e autotest OK; l'exe non è ancora stato provato su Windows.
 Versione portata a 0.2.0 (`project.godot`, `Game.VERSION`) per la nuova Release GitHub v0.2.0, che allega l'installer
 `.run` e l'eseguibile Linux più lo zip Windows (vedi [[build-e-distribuzione]]). Il saluto di rete confronta
 `Game.VERSION` (`scripts/autoload/Net.gd`): giocatori 0.1.0 e 0.2.0 non possono giocare insieme in rete.
+
+## [2026-10-26] test | Build Windows provata con Wine
+Nuovo `tools/windows_tests.sh`: l'exe Windows sotto Wine 11.17 (prefisso temporaneo) supera l'autotest, produce i 24
+screenshot con Vulkan identici a quelli Linux e gioca in rete con la versione Linux in tutte e due le direzioni, anche
+con lag (vedi [[test-di-rete]], [[build-e-distribuzione]]). Restano da provare su Windows vero SmartScreen, firewall e driver.
