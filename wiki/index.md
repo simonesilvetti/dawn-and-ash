@@ -50,7 +50,7 @@ Catalogo di tutte le pagine. Leggere questo file per primo; la cronologia è in 
 - [[architettura]] — **Architettura del software**: 
 - [[asset]] — **Asset e licenze**: Scaricati da tools/fetch_assets.sh (ripetibile, salta i file presenti). Licenze in assets/CREDITS.md.
 - [[audio]] — **Audio**: - Bus: Master, Music, SFX, UI, con volumi nelle impostazioni; M silenzia la musica.
-- [[build-e-distribuzione]] — **Build e distribuzione**: `build.sh` esporta l'eseguibile e crea l'installer `.run` per Linux.
+- [[build-e-distribuzione]] — **Build e distribuzione**: `build.sh` esporta gli eseguibili, crea l'installer `.run` per Linux e lo zip per Windows.
 - [[interfaccia]] — **Interfaccia utente**: Tema comune (UiKit): pannelli scuri semitrasparenti con bordi dorati, angoli arrotondati.
 - [[mappa]] — **Mappa e movimento**: Corsia diagonale unica da (−72, 72) a (72, −72), larga 30 m, con fiume perpendicolare al centro. Basi circolari di raggio 26 m negli angoli.
 - [[netcode]] — **Netcode**: ## Trasporto

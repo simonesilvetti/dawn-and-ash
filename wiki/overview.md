@@ -9,7 +9,7 @@ sources: [promt.md, README.md]
 # Panoramica del progetto
 
 **Dawn & Ash — Le Terre di Aethra** è un MOBA minimale in stile Dota 2, in 3D stilizzato (personaggi cartoon KayKit, terreno con texture CC0; vedi [[stile-grafico]] e [[piano-grafica-v2]]), fatto con Godot 4.7 e GDScript.
-Si gioca su Linux in **allenamento** (un eroe contro creep e torri) oppure **1 contro 1 in rete**, con una macchina che fa da host.
+Si gioca su Linux e Windows in **allenamento** (un eroe contro creep e torri) oppure **1 contro 1 in rete**, con una macchina che fa da host.
 
 ## Stato attuale
 - **Fase 1 (nucleo)**: completa, verificata dai test automatici. Vedi [[fasi-di-sviluppo]].

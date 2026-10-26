@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Scarica SOLO i template di esportazione Linux di Godot dall'archivio ufficiale .tpz (~1.3 GB),
-leggendo il file zip remoto a pezzi con richieste HTTP Range (vengono scaricati ~70 MB).
+"""Scarica SOLO i template di esportazione di Godot che servono dall'archivio ufficiale .tpz (~1.3 GB),
+leggendo il file zip remoto a pezzi con richieste HTTP Range (~70 MB per piattaforma).
 
-Uso: python3 tools/fetch_templates.py 4.7.2
+Uso: python3 tools/fetch_templates.py 4.7.2 [linux] [windows]   (senza piattaforme: solo linux)
 Installa in ~/.local/share/godot/export_templates/<versione>.stable/
 """
 import os
@@ -11,7 +11,10 @@ import sys
 import urllib.request
 import zlib
 
-WANTED = ("templates/linux_release.x86_64", "templates/version.txt")
+PLATFORMS = {
+    "linux": "templates/linux_release.x86_64",
+    "windows": "templates/windows_release_x86_64.exe",
+}
 
 
 def http_range(url: str, start: int, end: int) -> bytes:
@@ -28,6 +31,12 @@ def total_size(url: str) -> int:
 
 def main() -> int:
     ver = sys.argv[1] if len(sys.argv) > 1 else "4.7.2"
+    platforms = sys.argv[2:] or ["linux"]
+    unknown = [p for p in platforms if p not in PLATFORMS]
+    if unknown:
+        print(f"piattaforme sconosciute: {unknown} (disponibili: {list(PLATFORMS)})")
+        return 1
+    wanted = {PLATFORMS[p] for p in platforms} | {"templates/version.txt"}
     url = f"https://github.com/godotengine/godot/releases/download/{ver}-stable/Godot_v{ver}-stable_export_templates.tpz"
     dest = os.path.expanduser(f"~/.local/share/godot/export_templates/{ver}.stable")
     os.makedirs(dest, exist_ok=True)
@@ -68,7 +77,7 @@ def main() -> int:
                 if loff == 0xFFFFFFFF:
                     loff, = struct.unpack("<Q", vals[k:k + 8]); k += 8
             j += 4 + hsz
-        if name in WANTED:
+        if name in wanted:
             lh = http_range(url, loff, loff + 30 - 1)
             ln, lx = struct.unpack("<HH", lh[26:30])
             data_start = loff + 30 + ln + lx
@@ -83,7 +92,7 @@ def main() -> int:
             found += 1
         i += 46 + nlen + xlen + clen
     print(f"installati {found} file in {dest}")
-    return 0 if found == len(WANTED) else 1
+    return 0 if found == len(wanted) else 1
 
 
 if __name__ == "__main__":

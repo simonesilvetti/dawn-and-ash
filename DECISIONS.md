@@ -99,3 +99,10 @@ Richiesta dell'utente: un guerriero corpo a corpo con spada e scudo, forte quant
   `Unit.subtype` (già presente nell'evento spawn), quindi il protocollo di rete cambia solo nel saluto del client.
 - **Console e cursori**: shader dell'interfaccia (economici, ~0.17 ms di GPU) invece di texture dipinte, coerenti con le
   icone procedurali esistenti.
+
+## Build per Windows (2026-10-26)
+Richiesta dell'utente: distribuire anche per Windows.
+- **Export da Linux**, senza macchina Windows né Wine: template `windows_release_x86_64.exe` estratto come quello Linux.
+- **Zip invece di installer**: si estrae e si avvia `DawnAndAsh.exe`; un installer NSIS si può aggiungere in seguito.
+- **Niente firma del codice** per ora (costa): il `LEGGIMI.txt` spiega come superare l'avviso SmartScreen.
+- **Icona `icon.ico`** generata da `icon.svg` e messa nel repository; Godot 4.7 scrive icona e metadati senza `rcedit`.

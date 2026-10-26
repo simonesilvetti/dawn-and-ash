@@ -1,6 +1,6 @@
 # Dawn & Ash — Le Terre di Aethra
 
-MOBA minimale in stile Dota 2, in 3D stilizzato (personaggi cartoon, terreno con texture), per Linux. Guidi **Kael, il Piromante** della Lega dell'Alba
+MOBA minimale in stile Dota 2, in 3D stilizzato (personaggi cartoon, terreno con texture), per Linux e Windows. Guidi **Kael, il Piromante** della Lega dell'Alba
 contro il Culto della Cenere: distruggi le torri e l'**Antico** nemico. Si gioca in **allenamento** (contro creep e torri)
 oppure **1 contro 1 in rete**, con una delle due macchine che fa da host.
 
@@ -9,6 +9,18 @@ Fatto con **Godot 4.7** e GDScript. Modelli KayKit, texture del terreno ambientC
 ---
 
 ## Per giocare subito (senza installare niente)
+
+### Windows
+
+Scarica `DawnAndAsh-0.1.0-windows-x86_64.zip` (in `build/`, creato da `./build.sh`), estrai la cartella dove vuoi
+e fai doppio click su `DawnAndAsh.exe`. Non serve installare nulla: per toglierlo basta cancellare la cartella.
+
+- L'eseguibile non è firmato: al primo avvio Windows mostra "Windows ha protetto il PC".
+  Clicca **Ulteriori informazioni → Esegui comunque**.
+- Alla prima partita in rete il firewall di Windows chiede il permesso: consenti l'accesso (almeno alle reti private).
+- Requisiti: Windows 10/11 a 64 bit con driver video aggiornati.
+
+### Linux
 
 **Installer** (consigliato): scarica `DawnAndAsh-0.1.0-linux-x86_64.run` (in `build/`, creato da `./build.sh`) e avvialo:
 
@@ -35,7 +47,8 @@ Serve Godot 4.7 (`sudo pacman -S godot` su Arch/Omarchy).
 
 ```bash
 ./run.sh                 # avvia il gioco
-./build.sh               # crea build/DawnAndAsh.x86_64 e l'installer .run (scarica da solo i ~70 MB di template Linux al primo uso)
+./build.sh               # crea gli eseguibili Linux e Windows, l'installer .run e lo zip per Windows (scarica da solo i template al primo uso)
+./build.sh windows       # solo Windows (oppure: ./build.sh linux)
 ./tools/fetch_assets.sh  # riscarica modelli, texture, suoni e musica (sono già nel repository)
 ```
 
@@ -161,7 +174,7 @@ scripts/debug/AutoTest.gd           test automatici, screenshot, benchmark, soak
 assets/                             modelli, texture, musica, suoni (+ CREDITS.md)
 tools/                              script di download asset/template e test di rete
 wiki/                               documentazione del progetto (wiki mantenuto dall'agente, apribile in Obsidian)
-build/                              eseguibile esportato e installer .run (non nel repository: vedi le Release)
+build/                              eseguibili esportati, installer .run e zip Windows (non nel repository: vedi le Release)
 ```
 
 Documentazione tecnica dettagliata: `wiki/index.md`. Scelte prese durante lo sviluppo: `DECISIONS.md`.

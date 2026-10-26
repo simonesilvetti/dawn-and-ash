@@ -124,3 +124,10 @@ Scelte dell'utente: codice con licenza GNU GPL v3.0 o successiva (`LICENSE`, REA
 repository pubblico GitHub `dawn-and-ash`, installer `.run` allegato alla Release v0.1.0
 (vedi [[build-e-distribuzione]]). Tolto dal README l'IP d'esempio: la schermata "Ospita" mostra già gli IP locali.
 
+
+## [2026-10-26] modifica | Build per Windows
+Richiesta dell'utente: distribuire il gioco anche agli utenti Windows. Nuovo preset "Windows Desktop" in
+`export_presets.cfg`, esportato da Linux; `build.sh` costruisce entrambe le piattaforme (o una sola con
+`./build.sh linux|windows`); `tools/fetch_templates.py` accetta le piattaforme; `tools/make_windows_zip.sh` crea lo zip
+con exe, licenza e LEGGIMI. Icona `icon.ico` e metadati scritti da Godot senza rcedit (vedi [[build-e-distribuzione]]).
+Import e autotest OK; l'exe non è ancora stato provato su Windows.
