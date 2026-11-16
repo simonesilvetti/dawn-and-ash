@@ -1105,7 +1105,7 @@ func _run_soak() -> void:
 # ============================================================================
 
 ## Combattimenti 1 contro 1 a vari livelli con gli stessi oggetti, in simulazione pura (nessuna scena),
-## lontano da torri e creep. L'IA è semplice ma usa le abilità di ogni eroe come farebbe un giocatore:
+## senza creep e con le torri che non sparano. L'IA è semplice ma usa le abilità di ogni eroe come farebbe un giocatore:
 ## Kael tiene la distanza e usa lo scatto per fuggire, Peppino carica e stordisce.
 var _duel_stats: Dictionary = {}
 
@@ -1159,6 +1159,11 @@ func _duel_once(h0: String, h1: String, lvl: int, items: Array, seed_n: int) -> 
 	rng.seed = seed_n
 	var sim := Sim.new(true)
 	sim._wave_timer = 1e9
+	# le torri restano sulla mappa ma non sparano: la T1 della Lega è a ~10 m dal duello e aiutava chi
+	# indietreggiava verso di lei (soprattutto Kael quando giocava per la Lega)
+	for b in sim.unit_list:
+		if b.is_building():
+			b.damage = 0.0
 	var hds: Array[HeroData] = [sim.add_hero(1, 0, "A", h0), sim.add_hero(2, 1, "B", h1)]
 	var us: Array[Unit] = []
 	# posizioni: sulla corsia a metà strada tra le T1, a 9-15 m l'uno dall'altro
@@ -1292,12 +1297,22 @@ func _duel_ai(sim: Sim, hd: HeroData, me: Unit, en: Unit, peer: int, _rng: Rando
 				cast.call(0, me.pos)
 				return
 		"gorm":
-			# combinazione tipica: balzo addosso (scossa) o Fenditura, poi Eco del sisma e colpo del totem
+			# combinazione tipica: balzo addosso (scossa) o Fenditura, poi Eco del sisma e colpo del totem.
+			# Contro chi può ancora scattare via (Kael) tiene il balzo per inseguirlo dopo lo scatto.
 			var vel2 := ((en.pos - en.prev_pos) / Game.TICK).limit_length(en.current_move_speed())
+			var ehd: HeroData = sim.heroes.get(3 - peer)
+			var en_escape := false
+			if ehd:
+				for es in 4:
+					if ehd.abilities()[es].id == "blink" and ehd.ability_levels[es] > 0 and ehd.cooldowns[es] <= 0.0:
+						en_escape = true
 			if ready.call(3) and d <= 5.5:
 				cast.call(3, me.pos)
 				return
-			if ready.call(1) and d > 2.6 and d <= 8.0:
+			if en_escape and ready.call(0) and d <= 11.0 and not en.is_stunned():
+				cast.call(0, en.pos + vel2 * 0.5)
+				return
+			if ready.call(1) and d > 2.6 and d <= 8.0 and (not en_escape or d > 5.0):
 				cast.call(1, en.pos - (en.pos - me.pos).normalized() * 1.2)
 				return
 			if ready.call(0) and d <= 11.0 and not en.is_stunned():

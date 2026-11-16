@@ -2,7 +2,7 @@
 title: Kael, il Piromante
 type: entity
 tags: [eroe, personaggio]
-updated: 2026-10-22
+updated: 2026-11-16
 sources: [scripts/autoload/Game.gd, scripts/world/UnitView.gd, scripts/sim/HeroData.gd]
 ---
 
@@ -18,7 +18,7 @@ Giovane mago della [[lega-dell-alba]] che ha imparato a domare il fuoco dei cris
 ## Statistiche (livello 1, +per livello) — fonte `Game.HEROES.kael`
 | Vita | Rig. vita | Mana | Rig. mana | Danno | Intervallo attacco | Gittata | Velocità | Armatura |
 |---|---|---|---|---|---|---|---|---|
-| 600 (+80) | 2 (+0.2) | 300 (+40) | 1.5 (+0.15) | 45 (+4) | 1.3 s (−0.03, min 0.7) | 6 | 7 | 2 (+0.3) |
+| 660 (+88) | 2 (+0.2) | 300 (+40) | 1.5 (+0.15) | 45 (+4) | 1.3 s (−0.03, min 0.7) | 6 | 7 | 2 (+0.3) |
 
 Resistenza magica 25%. Livello massimo 10, esperienza per livello `100 × livello`. Attacco base: dardo di fuoco (proiettile).
 

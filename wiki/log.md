@@ -159,3 +159,10 @@ potenziato), Scossa di ritorno (**passiva**: ogni abilità stordisce attorno), E
 Import senza errori; autotest OK (sezione nuova su Gorm); test di rete OK compreso `gorm_80ms`, tranne la robustezza,
 che fallisce anche sul commit di partenza (vedi [[test-di-rete]]). Benchmark solo A/B a CPU carica: nessuna differenza
 oltre il rumore (vedi [[benchmark]]). Taratura con i duelli e squilibri rimasti in [[bilanciamento]].
+
+## [2026-11-16] modifica | Taratura dei tre eroi
+Richiesta dell'utente: rendere gli eroi più equilibrati. Trovato un errore nei duelli simulati: la T1 della Lega, a
+~10 m dal duello, sparava a chi combatteva contro l'eroe della Lega; ora le torri nei duelli non sparano. Nuova misura
+(scarto medio di vita) accanto alle vittorie. Ritoccati Kael (più vita), Peppino (più mana, Fendente più economico,
+meno vita per livello) e Gorm (vedi [[bilanciamento]]); IA dei duelli di Gorm che tiene il balzo contro lo Scatto.
+Scarto entro ±8% in tutte le 12 combinazioni; autotest OK.

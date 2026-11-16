@@ -2,7 +2,7 @@
 title: Peppino, il Guerriero
 type: entity
 tags: [eroe, personaggio]
-updated: 2026-10-22
+updated: 2026-11-16
 sources: [scripts/autoload/Game.gd, scripts/sim/Sim.gd, scripts/world/UnitView.gd, scripts/vfx/Vfx.gd, scripts/debug/AutoTest.gd]
 ---
 
@@ -23,14 +23,14 @@ Gioca per entrambe le fazioni, come Kael.
 ## Statistiche (livello 1, +per livello) — fonte `Game.HEROES.peppino`
 | Vita | Rig. vita | Mana | Rig. mana | Danno | Intervallo attacco | Gittata | Velocità | Armatura |
 |---|---|---|---|---|---|---|---|---|
-| 660 (+82) | 2.5 (+0.25) | 250 (+30) | 1.3 (+0.12) | 50 (+3.7) | 1.35 s (−0.035, min 0.75) | 1.6 (mischia) | 7.3 | 4 (+0.3) |
+| 660 (+78) | 2.5 (+0.25) | 280 (+36) | 1.45 (+0.15) | 50 (+3.7) | 1.35 s (−0.035, min 0.75) | 1.6 (mischia) | 7.3 | 4 (+0.3) |
 
 Resistenza magica 25%. Attacco in mischia (nessun proiettile): il danno arriva al "punto d'impatto" (0.35 s).
 
 ## Abilità — fonte `Game.HEROES.peppino.abilities`
 | Tasto | Abilità | Bersaglio | Effetto | Mana | Ricarica |
 |---|---|---|---|---|---|
-| Q | Fendente rotante | attorno a sé | 85/140/195/250 danno magico in 3.2 m | 75 | 7 s |
+| Q | Fendente rotante | attorno a sé | 85/140/195/250 danno magico in 3.2 m | 60 | 7 s |
 | W | Carica | punto (9 m) | scatto a 34 m/s; all'arrivo 50/75/100/125 in 2.4 m + stordimento 0.7/0.85/1.0/1.15 s | 70 | 16/14/12/10 s |
 | E | Scudo di ferro | sé | danni subiti −20/28/36/44% per 4 s | 80 | 15 s |
 | R | Spaccaterra | direzione (12 m) | crepa in linea larga 2.2 m: 260/400/540 + stordimento 1.6 s | 180 | 60/50/40 s |
@@ -50,8 +50,9 @@ Vortice d'aria tagliente e anelli d'acciaio (Q); polvere lungo il percorso e imp
 bolla dorate (E); crepa incandescente che si apre verso la punta (`crack.gdshader`), rocce e polvere in sequenza (R).
 Vedi [[rendering-e-vfx]].
 
-## Equilibrio con Kael
-Misurato con `godot --headless -- --duel` (IA semplice, stessi oggetti, lati alternati, tempi di reazione casuali):
-vedi [[bilanciamento]]. Risultati finali (80 duelli per livello, vittorie Kael – Peppino): liv. 1 40–40, liv. 3 48–32,
-liv. 6 40–40, liv. 10 44–36. Peppino è forte all'inizio di uno scontro (carica + stordimento) e resiste di più;
-Kael fa più danni a distanza e scappa con lo scatto.
+## Equilibrio
+Misurato con `godot --headless -- --duel` (IA semplice, stessi oggetti, lati alternati): vedi [[bilanciamento]].
+I primi risultati (2026-10-22, Kael–Peppino 40–40, 48–32, 40–40, 44–36) erano falsati da una torre che sparava durante
+i duelli. Dopo la taratura del 2026-11-16 (più mana, Fendente a 60, vita per livello 78) lo scarto medio di vita contro
+Kael e contro [[gorm]] è entro ±8% a ogni livello. Peppino è forte all'inizio di uno scontro (carica + stordimento) e
+resiste di più; Kael fa più danni a distanza e scappa con lo scatto.

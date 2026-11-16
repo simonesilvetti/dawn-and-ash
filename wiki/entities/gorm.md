@@ -28,18 +28,19 @@ sta vicino. Si sceglie nel menu (scheda "Gorm"); gioca per entrambe le fazioni.
 ## Statistiche (livello 1, +per livello) — fonte `Game.HEROES.gorm`
 | Vita | Rig. vita | Mana | Rig. mana | Danno | Intervallo attacco | Gittata | Velocità | Armatura | Res. magica |
 |---|---|---|---|---|---|---|---|---|---|
-| 680 (+88) | 2.6 (+0.25) | 270 (+32) | 1.4 (+0.13) | 48 (+4.3) | 1.45 s (−0.04, min 0.8) | 1.7 (mischia) | 7.0 | 2.5 (+0.35) | 33% |
+| 700 (+92) | 2.6 (+0.25) | 270 (+32) | 1.4 (+0.13) | 48 (+4.6) | 1.45 s (−0.04, min 0.8) | 1.7 (mischia) | 7.3 | 2.5 (+0.35) | 40% |
 
-Più resistenza magica e meno armatura degli altri eroi (gigante di terra): è la leva usata per l'equilibrio con Kael
-(danni tutti magici) senza rafforzarlo contro Peppino (danni soprattutto fisici). Vedi [[bilanciamento]].
+Più resistenza magica e meno armatura degli altri eroi (gigante di terra), e un po' più veloce: sono le leve che lo
+aiutano contro Kael (danni magici, fugge) senza rafforzarlo contro Peppino. La Scossa di ritorno è stata ridotta più
+volte perché colpisce solo chi sta vicino e quindi puniva soprattutto i corpo a corpo. Vedi [[bilanciamento]].
 
 ## Abilità — fonte `Game.HEROES.gorm.abilities`
 | Tasto | Abilità | Bersaglio | Effetto | Mana | Ricarica |
 |---|---|---|---|---|---|
-| Q | Fenditura | direzione (12 m) | 100/150/200/250 in linea larga 1.2 m + stordimento 0.7/0.8/0.9/1.0 s; **muro di roccia** per 5 s | 110/120/130/140 | 18/17/16/15 s |
+| Q | Fenditura | direzione (12 m) | 110/155/200/245 in linea larga 1.2 m + stordimento 0.7/0.8/0.9/1.0 s; **muro di roccia** per 5 s | 110/120/130/140 | 18/17/16/15 s |
 | W | Totem del sisma | punto (7 m) | balzo in 0.45 s (sul posto se il punto è entro 1 m); il prossimo attacco entro 12 s fa +80/140/200/260% di danno e arriva 1 m più lontano | 55 | 12/11/10/9 s |
-| E | Scossa di ritorno | **passiva** | a ogni abilità lanciata: 40/60/80/100 e stordimento 0.3/0.4/0.5/0.6 s entro 3 m | — | — |
-| R | Eco del sisma | attorno a sé (7 m) | 170/270/370 a tutti i nemici; dopo 0.35 s ogni colpito riceve 35/48/60 per ogni eco (un'eco per nemico colpito, due per gli eroi, sé stesso compreso, massimo 10) | 200/220/240 | 75/65/55 s |
+| E | Scossa di ritorno | **passiva** | a ogni abilità lanciata: 35/50/65/80 e stordimento 0.25/0.3/0.35/0.4 s entro 3 m | — | — |
+| R | Eco del sisma | attorno a sé (7 m) | 190/290/390 a tutti i nemici; dopo 0.35 s ogni colpito riceve 35/48/60 per ogni eco (un'eco per nemico colpito, due per gli eroi, sé stesso compreso, massimo 10) | 200/220/240 | 75/65/55 s |
 
 La Scossa scatta dopo la Fenditura, all'**atterraggio** del Totem (o subito, se sul posto) e dopo l'Eco del sisma.
 La passiva non si lancia: premere E mostra "abilità passiva" (`World.try_ability`), il server la rifiuta (`Sim._try_cast`).
@@ -78,6 +79,6 @@ Disegnate in `scripts/ui/icon.gdshader`: 8 Fenditura (crepa tra due file di punt
 rune che pulsano), 19 Scossa (anelli di terra e stelline), 20 Eco (onde da più punti). Id in `IconRect.IDS`.
 
 ## Equilibrio
-Duelli simulati, 80 per caso (vittorie del primo – di Gorm): vedi [[bilanciamento]]. Gorm è forte a metà partita contro
-un altro corpo a corpo e soffre un mago che lo tiene a distanza; nei duelli l'Eco del sisma rende meno che in corsia,
-dove i creep moltiplicano gli echi.
+Duelli simulati senza torri, 120 per caso: con tutti e due gli avversari lo scarto medio di vita a fine duello è entro
+±8% a ogni livello (vedi [[bilanciamento]]). Nei duelli l'Eco del sisma rende meno che in corsia, dove i creep
+moltiplicano gli echi.
