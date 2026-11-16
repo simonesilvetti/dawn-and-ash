@@ -106,3 +106,17 @@ Richiesta dell'utente: distribuire anche per Windows.
 - **Zip invece di installer**: si estrae e si avvia `DawnAndAsh.exe`; un installer NSIS si può aggiungere in seguito.
 - **Niente firma del codice** per ora (costa): il `LEGGIMI.txt` spiega come superare l'avviso SmartScreen.
 - **Icona `icon.ico`** generata da `icon.svg` e messa nel repository; Godot 4.7 scrive icona e metadati senza `rcedit`.
+
+## Terzo eroe: Gorm, lo Scuotiterra (2026-11-16)
+Richiesta dell'utente: un personaggio che stordisce, ispirato all'Earthshaker di Dota 2, con animazioni curate e leggere.
+- **Kit**: Fenditura (linea con stordimento e muro), Totem (colpo potenziato), Scossa di ritorno (passiva che stordisce
+  a ogni abilità), Eco del sisma (danno moltiplicato dal numero di nemici). Il Totem può **balzare** (in Dota serve
+  l'Aghanim): dà a un corpo a corpo un modo per raggiungere il bersaglio ed è un'animazione vistosa.
+- **Modello**: KayKit Barbarian (già scaricato per i creep d'assedio), **totem fatto di primitive** invece dell'ascia:
+  nessun asset nuovo e un'arma riconoscibile.
+- **Muri veri** nella simulazione (bloccano tutti, anche gli alleati, come in Dota) con aggiramento senza pathfinding:
+  la mappa resta fatta di forme convesse e il costo è nullo quando non ci sono muri.
+- **Eco su sé stessi**: ogni nemico colpito riceve anche la propria eco (un eroe da solo ne riceve due), altrimenti in un
+  gioco 1 contro 1 l'ultimate rendeva poco lontano dai creep.
+- **Flag di rete a 16 bit** e versione 0.3.0, perché il saluto confronta solo la versione.
+- **Stelline dello stordimento per tutte le unità**: prima lo stordimento si vedeva solo dall'animazione rallentata.

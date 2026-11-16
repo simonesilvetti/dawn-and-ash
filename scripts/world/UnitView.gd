@@ -19,6 +19,12 @@ const MODELS := {
 		"idle": "Idle", "move": "Running_A", "attack": "1H_Melee_Attack_Slice_Diagonal", "cast": "2H_Melee_Attack_Spin",
 		"casts": [["2H_Melee_Attack_Spin", 1.5], ["1H_Melee_Attack_Stab", 1.2], ["Block", 1.0], ["2H_Melee_Attack_Chop", 1.1]],
 		"death": "Death_A", "hit": "Hit_A", "run_ref": 5.5, "impact": 0.42},
+	"hero_gorm": {"file": "Barbarian.glb", "scale": 1.06,
+		"hide": ["1H_Axe_Offhand", "Barbarian_Round_Shield", "1H_Axe", "2H_Axe", "Mug"],
+		"idle": "2H_Melee_Idle", "move": "Running_A", "attack": "2H_Melee_Attack_Slice", "cast": "2H_Melee_Attack_Chop",
+		# il colpo a terra della clip Chop è al 57%: velocità scelte perché coincida con il cast point
+		"casts": [["2H_Melee_Attack_Chop", 1.86], ["2H_Melee_Attack_Chop", 3.0], ["", 1.0], ["", 1.0]],
+		"leap": "Jump_Full_Short", "death": "Death_B", "hit": "Hit_A", "run_ref": 5.5, "impact": 0.55},
 	"melee_0": {"file": "Knight.glb", "scale": 0.66,
 		"hide": ["2H_Sword", "Badge_Shield", "Rectangle_Shield", "Spike_Shield", "1H_Sword_Offhand"],
 		"idle": "Idle", "move": "Running_B", "attack": "1H_Melee_Attack_Chop", "death": "Death_A",
@@ -76,6 +82,14 @@ var crystal: Node3D                 # cristallo luminoso degli edifici
 var light: OmniLight3D
 var shield: MeshInstance3D          # scudo trasparente degli edifici invulnerabili
 var buff_shield: MeshInstance3D     # bolla dorata dello Scudo di ferro (Peppino)
+var totem_rune: MeshInstance3D      # fascia di rune del totem di Gorm (si accende col Totem del sisma)
+var totem_fire: GPUParticles3D      # braci sulla testa del totem carico
+var totem_light: OmniLight3D
+var empowered := false
+var stun_fx: Node3D                 # stelline che girano sopra la testa degli storditi
+var hop_t: float = -1.0             # balzo in corso (Totem di Gorm): tempo trascorso, durata, altezza
+var hop_dur: float = 0.5
+var hop_h: float = 2.0
 var building_model: Node3D
 var collapse_t: float = -1.0
 var rubble: Node3D
@@ -129,7 +143,11 @@ func _reset_visual() -> void:
 	cur_anim = ""
 	lock_t = 0.0
 	flash_t = 0.0
+	hop_t = -1.0
 	_set_flash(false)
+	_set_empowered(false)
+	if stun_fx:
+		stun_fx.visible = false
 	if anim:
 		play(cfg.get("idle", "Idle"), 0.0)
 
@@ -180,6 +198,8 @@ func _build_character(quality: int) -> void:
 		_add_staff_flame(skel)
 	elif model_key == "hero_peppino":
 		_dress_warrior()
+	elif model_key == "hero_gorm":
+		_dress_shaker()
 
 
 ## Imposta i loop delle clip una sola volta per modello: modificare un'Animation condivisa
@@ -192,7 +212,7 @@ static func _configure_animations(ap: AnimationPlayer, c: Dictionary) -> void:
 		if ap.has_animation(a):
 			ap.get_animation(a).loop_mode = Animation.LOOP_LINEAR
 	var once: Array = []
-	for key in ["death", "attack", "spawn", "cast"]:
+	for key in ["death", "attack", "spawn", "cast", "leap"]:
 		once.append(c.get(key, ""))
 	for cs in c.get("casts", []):
 		once.append(cs[0])
@@ -263,6 +283,166 @@ func _dress_warrior() -> void:
 			m2.rim_tint = 0.5
 			_tint_cache[key2] = m2
 		sh.material_override = m2
+
+
+## Gorm: totem di pietra a due mani (manico di legno, testa di roccia con una fascia di rune) al posto dell'ascia.
+## Mesh primitive condivise tra le istanze; la fascia di rune è emissiva e si accende col Totem del sisma.
+static var _totem_parts: Dictionary = {}
+
+func _dress_shaker() -> void:
+	var hand: Node3D = model.find_child("handslot_r", true, false)
+	if hand == null:
+		return
+	var rune_col := Color(1.0, 0.55, 0.15) if team == 0 else Color(0.72, 0.35, 1.0)
+	if _totem_parts.is_empty():
+		var shaft := CylinderMesh.new()
+		shaft.top_radius = 0.06
+		shaft.bottom_radius = 0.075
+		shaft.height = 1.45
+		shaft.radial_segments = 8
+		shaft.rings = 1
+		var wood := StandardMaterial3D.new()
+		wood.albedo_color = Color(0.42, 0.27, 0.15)
+		wood.roughness = 0.85
+		shaft.material = wood
+		_totem_parts.shaft = shaft
+		var head := CylinderMesh.new()       # testa: prisma ottagonale tozzo, un po' rastremato
+		head.top_radius = 0.25
+		head.bottom_radius = 0.31
+		head.height = 0.72
+		head.radial_segments = 8
+		head.rings = 1
+		var stone := StandardMaterial3D.new()
+		stone.albedo_color = Color(0.5, 0.46, 0.42)
+		stone.roughness = 0.9
+		stone.rim_enabled = true
+		stone.rim = 0.4
+		stone.rim_tint = 0.3
+		head.material = stone
+		_totem_parts.head = head
+		var cap := CylinderMesh.new()        # punta: tronco di cono di pietra più chiara
+		cap.top_radius = 0.09
+		cap.bottom_radius = 0.25
+		cap.height = 0.24
+		cap.radial_segments = 8
+		cap.rings = 1
+		var stone2 := stone.duplicate() as StandardMaterial3D
+		stone2.albedo_color = Color(0.62, 0.58, 0.52)
+		cap.material = stone2
+		_totem_parts.cap = cap
+		var band := CylinderMesh.new()       # legature di cuoio sul manico
+		band.top_radius = 0.085
+		band.bottom_radius = 0.085
+		band.height = 0.07
+		band.radial_segments = 8
+		band.rings = 1
+		var leather := StandardMaterial3D.new()
+		leather.albedo_color = Color(0.25, 0.14, 0.08)
+		band.material = leather
+		_totem_parts.band = band
+		var rune := CylinderMesh.new()       # fascia di rune attorno alla testa
+		rune.top_radius = 0.3
+		rune.bottom_radius = 0.315
+		rune.height = 0.12
+		rune.radial_segments = 8
+		rune.rings = 1
+		rune.cap_top = false
+		rune.cap_bottom = false
+		_totem_parts.rune = rune
+	var root := Node3D.new()
+	root.name = "Totem"
+	hand.add_child(root)
+	var parts := [["shaft", Vector3(0, 0.38, 0)], ["head", Vector3(0, 1.38, 0)], ["cap", Vector3(0, 1.86, 0)],
+		["band", Vector3(0, 0.0, 0)], ["band", Vector3(0, 0.95, 0)]]
+	for pd in parts:
+		var mi := MeshInstance3D.new()
+		mi.mesh = _totem_parts[pd[0]]
+		mi.position = pd[1]
+		root.add_child(mi)
+		meshes.append(mi)
+	totem_rune = MeshInstance3D.new()
+	totem_rune.mesh = _totem_parts.rune
+	totem_rune.position = Vector3(0, 1.3, 0)
+	totem_rune.material_override = VfxLib.glow_material(rune_col, 1.2)
+	totem_rune.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	root.add_child(totem_rune)
+	totem_fire = VfxLib.make_flame(rune_col)
+	totem_fire.position = Vector3(0, 1.5, 0)
+	totem_fire.emitting = false
+	totem_fire.visible = false
+	root.add_child(totem_fire)
+	totem_light = OmniLight3D.new()
+	totem_light.light_color = rune_col
+	totem_light.light_energy = 1.3
+	totem_light.omni_range = 4.5
+	totem_light.shadow_enabled = false
+	totem_light.position = Vector3(0, 1.35, 0)
+	totem_light.visible = false
+	root.add_child(totem_light)
+	for mi in meshes:
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+
+
+func _set_empowered(on: bool) -> void:
+	if on == empowered or totem_rune == null:
+		return
+	empowered = on
+	var rune_col := Color(1.0, 0.55, 0.15) if team == 0 else Color(0.72, 0.35, 1.0)
+	totem_rune.material_override = VfxLib.glow_material(rune_col, 3.2 if on else 1.2)
+	totem_fire.visible = on
+	totem_fire.emitting = on
+	totem_light.visible = on
+
+
+## Balzo (Totem di Gorm): il modello segue un arco sopra la posizione a terra, che arriva dalla simulazione.
+func leap(dur: float, h: float) -> void:
+	hop_t = 0.0
+	hop_dur = maxf(dur, 0.1)
+	hop_h = h
+	var a: String = cfg.get("leap", "")
+	if anim and a != "" and anim.has_animation(a):
+		# la clip comprende stacco, volo e atterraggio: la si adatta alla durata del balzo
+		var length := anim.get_animation(a).length
+		var speed := length / (hop_dur + 0.35)
+		cur_anim = ""
+		play(a, 0.05, speed)
+		lock_t = hop_dur + 0.1
+
+
+func _update_hop(delta: float) -> void:
+	hop_t += delta
+	var k := clampf(hop_t / hop_dur, 0.0, 1.0)
+	model.position.y = hop_h * 4.0 * k * (1.0 - k)
+	if k >= 1.0:
+		hop_t = -1.0
+		model.position.y = 0.0
+
+
+## Stelline dello stordimento: tre punti luminosi che girano sopra la testa (create alla prima occorrenza).
+static var _star_mesh: QuadMesh
+
+func _update_stun_fx(delta: float, on: bool) -> void:
+	if stun_fx == null:
+		if not on:
+			return
+		if _star_mesh == null:
+			_star_mesh = QuadMesh.new()
+			_star_mesh.size = Vector2(0.32, 0.32)
+			_star_mesh.material = VfxLib.halo_material(Color(1.0, 0.9, 0.45))
+		stun_fx = Node3D.new()
+		for i in 3:
+			var st := MeshInstance3D.new()
+			st.mesh = _star_mesh
+			st.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			var ang := TAU * i / 3.0
+			st.position = Vector3(cos(ang) * 0.42, 0.0, sin(ang) * 0.42)
+			stun_fx.add_child(st)
+		stun_fx.position.y = height - 0.05
+		add_child(stun_fx)
+	stun_fx.visible = on
+	if on:
+		stun_fx.rotation.y += delta * 5.0
+		stun_fx.position.y = height - 0.05 + sin(Time.get_ticks_msec() * 0.006) * 0.05
 
 
 func _add_staff_flame(_skel: Skeleton3D) -> void:
@@ -561,11 +741,17 @@ func tick_anim(delta: float, on_screen: bool, frame: int) -> void:
 
 ## Aggiornamento per frame chiamato da World.
 ## moving/attacking derivano dallo stato dell'unità; speed = velocità reale per adattare la camminata.
-func update_visual(delta: float, p: Vector3, f: float, moving: bool, speed: float, invulnerable: bool, stunned: bool, shielded: bool = false) -> void:
+func update_visual(delta: float, p: Vector3, f: float, moving: bool, speed: float, invulnerable: bool, stunned: bool, shielded: bool = false, empower: bool = false) -> void:
 	vis_pos = p
 	position = p
 	if shielded or buff_shield:
 		_update_buff_shield(delta, shielded and not dead)
+	if stunned or stun_fx:
+		_update_stun_fx(delta, stunned and not dead)
+	if totem_rune and empower != empowered:
+		_set_empowered(empower and not dead)
+	if hop_t >= 0.0 and model:
+		_update_hop(delta)
 	if flash_t > 0.0:
 		flash_t -= delta
 		if flash_t <= 0.0:
@@ -575,6 +761,8 @@ func update_visual(delta: float, p: Vector3, f: float, moving: bool, speed: floa
 		return
 	_update_wake(p, moving)
 	if dead:
+		if stun_fx:
+			stun_fx.visible = false
 		death_t += delta
 		# dopo l'animazione di morte il corpo sprofonda nel terreno
 		if death_t > 1.6 and model:

@@ -2,7 +2,7 @@
 title: Decisioni prese in autonomia
 type: concept
 tags: [decisioni]
-updated: 2026-10-22
+updated: 2026-11-16
 sources: [DECISIONS.md]
 ---
 
@@ -19,3 +19,5 @@ L'elenco completo e motivato è in `DECISIONS.md` (radice del progetto). Le più
 - Benchmark in un SubViewport 1600×900 a dimensione fissa (Hyprland ridimensiona le finestre). → [[test-automatici]]
 - **Grafica v2** (2026-10-21): stile "stilizzato con texture" (texture CC0 ambientCG sul terreno, modelli KayKit invariati), rilievo solo visivo, basi fortificate, HUD a shader con ritratto 3D. Vedi [[piano-grafica-v2]].
 - **Secondo eroe Peppino** (2026-10-22): guerriero corpo a corpo sul modello Knight (elmo dorato, scudo a goccia), dati per eroe in `Game.HEROES`, equilibrio con Kael verificato con duelli simulati; console e cursori a shader. → [[peppino]], [[bilanciamento]]
+- **Terzo eroe Gorm** (2026-11-16): ispirato all'Earthshaker di Dota 2, modello Barbarian con un totem di primitive;
+  muri che bloccano il passaggio, passiva che stordisce, flag di rete a 16 bit e versione 0.3.0. → [[gorm]]

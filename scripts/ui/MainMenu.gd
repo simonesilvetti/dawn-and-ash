@@ -126,9 +126,9 @@ func _build_hero_picker(parent: Control) -> void:
 		b.toggle_mode = true
 		b.button_group = group
 		b.text = "%s\n%s" % [h.name, h.title]
-		b.custom_minimum_size = Vector2(185, 58)
+		b.custom_minimum_size = Vector2(120, 58)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		b.add_theme_font_size_override("font_size", 16)
+		b.add_theme_font_size_override("font_size", 15 if Game.HERO_ORDER.size() > 2 else 16)
 		b.add_theme_stylebox_override("pressed", UiKit.panel_style(Color(0.42, 0.26, 0.1, 1.0), UiKit.GOLD_BRIGHT, 8, 3))
 		b.button_pressed = str(Game.settings.hero) == id
 		var hid: String = id

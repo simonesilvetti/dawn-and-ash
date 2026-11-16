@@ -2,7 +2,7 @@
 title: Indice del wiki
 type: overview
 tags: [indice]
-updated: 2026-10-22
+updated: 2026-11-16
 sources: []
 ---
 
@@ -25,6 +25,7 @@ Catalogo di tutte le pagine. Leggere questo file per primo; la cronologia è in 
 - [[creep]] — **Creep**: Ondata ogni 30 s (la prima a 5 s): 3 corpo a corpo + 1 a distanza per squadra; dalla 5ª ondata, ogni 5, anche un creep d'assedio (Fase 2).
 - [[culto-della-cenere]] — **Culto della Cenere (Dire)**: Scheletri e creature nate dalle rovine bruciate. Base in alto a destra. Colori: rosso-viola (Game.TEAM_COLORS[1]).
 - [[edifici]] — **Edifici: torri, Antico, fontana**: statistiche, protezione a cascata, aggro delle torri, fontana e negozio, crollo.
+- [[gorm]] — **Gorm, lo Scuotiterra**: gigante corpo a corpo con un totem di pietra (modello Barbarian), ispirato all'Earthshaker di Dota 2; Fenditura con muro di roccia, Totem con balzo, Scossa di ritorno passiva che stordisce, Eco del sisma.
 - [[kael]] — **Kael, il Piromante**: giovane mago a distanza della lega-dell-alba che doma il fuoco dei cristalli; uno dei due eroi selezionabili.
 - [[lega-dell-alba]] — **Lega dell'Alba (Radiant)**: Cavalieri e maghi delle foreste dorate. Base in basso a sinistra della mappa (MapData.BASE_CENTER[0]). Colori: verde-acqua con dettagli...
 - [[peppino]] — **Peppino, il Guerriero**: guerriero corpo a corpo con spada e scudo (modello Knight, elmo dorato); Fendente rotante, Carica, Scudo di ferro, Spaccaterra; bilanciato con Kael tramite duelli simulati.
@@ -37,7 +38,7 @@ Catalogo di tutte le pagine. Leggere questo file per primo; la cronologia è in 
 ## Concetti
 
 - [[ambientazione]] — **Ambientazione: le Terre di Aethra**: Nelle Terre di Aethra due antichi cristalli, gli Antichi, alimentano due regni rivali: chi distrugge il cristallo nemico vince la guerra.
-- [[bilanciamento]] — **Bilanciamento**: tutti i numeri stanno in scripts/autoload/Game.gd (eroi in Game.HEROES); formule; duelli simulati Kael–Peppino (`--duel`) e taratura.
+- [[bilanciamento]] — **Bilanciamento**: tutti i numeri stanno in scripts/autoload/Game.gd (eroi in Game.HEROES); formule; duelli simulati tra Kael, Peppino e Gorm (`--duel`) e taratura.
 - [[controlli]] — **Controlli**: tutti i comandi da tastiera e mouse in stile Dota.
 - [[decisioni]] — **Decisioni prese in autonomia**: L'elenco completo e motivato è in DECISIONS.md (radice del progetto). Le più importanti:
 - [[piano-grafica-v2]] — **Piano "Grafica v2"**: più dettaglio con Dota 2 come riferimento, stesse prestazioni: terreno con texture e rilievo, acqua, vegetazione, basi fortificate, effetti a strati, HUD ornato.

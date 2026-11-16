@@ -406,6 +406,10 @@ class _Portrait3D extends SubViewportContainer:
 		if str(Game.settings.hero) == "peppino":
 			cam.position = Vector3(0.0, 1.75, 3.5)
 			cam.look_at(Vector3(0.0, 1.3, 0.0))
+		elif str(Game.settings.hero) == "gorm":
+			# il cappello d'orso e il totem sono più alti e larghi
+			cam.position = Vector3(0.0, 1.95, 4.1)
+			cam.look_at(Vector3(0.0, 1.4, 0.0))
 		else:
 			cam.position = Vector3(0.0, 1.55, 3.1)
 			cam.look_at(Vector3(0.0, 1.2, 0.0))
@@ -612,12 +616,20 @@ func _show_ability_tooltip(i: int, anchor: Control) -> void:
 	var ab: Dictionary = world.local_abilities()[i]
 	var hd := world.local_hero_data()
 	var lvl: int = hd.ability_levels[i] if hd else 0
-	var t := "[b][color=#ffd27a]%s (%s)[/color][/b]\n%s\n" % [ab.name, ab.key, ab.desc]
+	var passive: bool = ab.target == "passive"
+	var t := "[b][color=#ffd27a]%s (%s)[/color][/b]%s\n%s\n" % [ab.name, ab.key, "  [color=#a0a0a0](passiva)[/color]" if passive else "", ab.desc]
 	var dmg: Array = ab.damage
 	if dmg[0] > 0.0:
 		t += "\n[color=#ffb070]Danno:[/color] %s" % " / ".join(dmg.map(func(d): return str(int(d))))
-	t += "\n[color=#80a8ff]Mana:[/color] %s" % " / ".join((ab.mana as Array).map(func(d): return str(int(d))))
-	t += "\n[color=#cccccc]Ricarica:[/color] %s s" % " / ".join((ab.cooldown as Array).map(func(d): return str(int(d))))
+	if ab.has("echo"):
+		t += "\n[color=#ffb070]Eco per nemico:[/color] %s (max %d echi)" % [" / ".join((ab.echo as Array).map(func(d): return str(int(d)))), int(ab.echo_max)]
+	if ab.has("bonus"):
+		t += "\n[color=#ffb070]Danno dell'attacco:[/color] %s per %d s" % [" / ".join((ab.bonus as Array).map(func(d): return "+%d%%" % roundi(d * 100.0))), int(ab.duration)]
+	if not passive:
+		t += "\n[color=#80a8ff]Mana:[/color] %s" % " / ".join((ab.mana as Array).map(func(d): return str(int(d))))
+		t += "\n[color=#cccccc]Ricarica:[/color] %s s" % " / ".join((ab.cooldown as Array).map(func(d): return str(int(d))))
+	if ab.has("wall_time"):
+		t += "\n[color=#d8c8a8]Muro di roccia:[/color] %d s" % int(ab.wall_time)
 	if ab.has("stun"):
 		var st = ab.stun
 		t += "\n[color=#ffe080]Stordimento:[/color] %s s" % (" / ".join((st as Array).map(func(d): return "%.1f" % d)) if st is Array else "%.1f" % st)

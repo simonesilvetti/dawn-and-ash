@@ -10,7 +10,8 @@ var units: Dictionary = {}               # id -> Unit
 var unit_list: Array[Unit] = []
 var heroes: Dictionary = {}              # peer -> HeroData
 var projectiles: Array = []              # Dictionary
-var delayed: Array = []                  # effetti ritardati (meteora)
+var delayed: Array = []                  # effetti ritardati (meteora, eco del sisma)
+var walls: Array = []                    # muri di roccia della Fenditura: {a, b, w, until}
 var events: Array = []                   # eventi del tick corrente
 var buildings: Array = [{}, {}]          # team -> {subtype: id}
 var game_over := false
@@ -236,7 +237,7 @@ func _try_cast(u: Unit, hd: HeroData, slot: int, point: Vector2) -> void:
 	if lvl <= 0 or hd.cooldowns[slot] > 0.0:
 		return
 	var ab: Dictionary = hd.abilities()[slot]
-	if u.mana < ab.mana[lvl - 1]:
+	if ab.target == "passive" or u.mana < ab.mana[lvl - 1]:
 		return
 	_cancel_windup(u)
 	if ab.get("walk_to_range", false) and u.pos.distance_to(point) > ab.range:
@@ -340,6 +341,112 @@ func _execute_cast(u: Unit) -> void:
 					_damage(u, t, dmg, true, false)
 					if t.alive:
 						t.stun_time = maxf(t.stun_time, ab.stun)
+		# --- Gorm ---
+		"fissure":
+			_fissure(u, ab, lvl, dmg)
+			_aftershock(u, hd)
+		"totem":
+			# balzo fino al punto (entro la gittata); vicino = sul posto. Il colpo avviene all'atterraggio.
+			var dest := u.cast_point
+			if dest.distance_to(u.pos) > ab.range:
+				dest = u.pos + (dest - u.pos).normalized() * ab.range
+			dest = MapData.clamp_walkable(dest, u.radius)
+			if dest.distance_to(u.pos) < 1.0:
+				_totem_slam(u, hd, slot)
+			else:
+				var lt: float = ab.leap_time
+				u.dash_goal = dest
+				u.dash_speed = dest.distance_to(u.pos) / lt
+				u.dash_time = lt + Game.TICK
+				u.dash_slot = slot
+				u.dash_leap = true
+				u.has_move_goal = false
+				u.facing = (dest - u.pos).angle()
+				events.append(["fx", "totem_leap", u.pos.x, u.pos.y, u.id, dest.x, dest.y, lt])
+		"echo_slam":
+			_echo_slam(u, ab, lvl, dmg)
+			_aftershock(u, hd)
+
+
+## Fenditura: danno e stordimento lungo la linea, poi un muro di roccia che blocca il passaggio.
+## Le unità sulla linea vengono spinte di lato (dal lato in cui si trovano).
+func _fissure(u: Unit, ab: Dictionary, lvl: int, dmg: float) -> void:
+	var dir := (u.cast_point - u.pos)
+	dir = Vector2.from_angle(u.facing) if dir.length() < 0.1 else dir.normalized()
+	var a: Vector2 = u.pos + dir * (u.radius + float(ab.wall_width) + 0.15)
+	var b: Vector2 = u.pos + dir * float(ab.range)
+	# il muro non esce dall'area percorribile (resta dentro corsia/basi)
+	b = MapData.clamp_walkable(b, 0.5)
+	events.append(["fx", "fissure", a.x, a.y, u.id, b.x, b.y, ab.wall_time])
+	var mid: Vector2 = (a + b) * 0.5
+	for t in _query(mid, a.distance_to(b) * 0.5 + ab.width + 1.0):
+		if not t.alive or t.is_building():
+			continue
+		var cd := Geometry2D.get_closest_point_to_segment(t.pos, a, b).distance_to(t.pos)
+		if t.team != u.team and cd <= ab.width + t.radius:
+			_damage(u, t, dmg, true, false)
+			if t.alive:
+				t.stun_time = maxf(t.stun_time, ab.stun[lvl - 1])
+		if t.alive and cd < ab.wall_width + t.radius:
+			t.pos = MapData.clamp_walkable(MapData.push_from_wall(t.pos, t.radius, Vector2.ZERO, a, b, float(ab.wall_width)), t.radius)
+			t.prev_pos = t.pos
+	walls.append({"a": a, "b": b, "w": float(ab.wall_width), "until": time + float(ab.wall_time)})
+
+
+## Totem del sisma: il prossimo attacco è potenziato; lo schianto del totem innesca la Scossa di ritorno.
+func _totem_slam(u: Unit, hd: HeroData, slot: int) -> void:
+	var ab: Dictionary = hd.abilities()[slot]
+	var lvl: int = maxi(1, hd.ability_levels[slot])
+	u.empower_time = ab.duration
+	u.empower_mult = 1.0 + float(ab.bonus[lvl - 1])
+	u.empower_range = float(ab.get("attack_range_bonus", 0.0))
+	events.append(["fx", "totem_slam", u.pos.x, u.pos.y, u.id])
+	_aftershock(u, hd)
+
+
+## Scossa di ritorno (passiva di Gorm): danno e stordimento attorno all'eroe a ogni abilità lanciata.
+func _aftershock(u: Unit, hd: HeroData) -> void:
+	var abs_: Array = hd.abilities()
+	for s in abs_.size():
+		var ab: Dictionary = abs_[s]
+		if ab.id != "aftershock":
+			continue
+		var lvl: int = hd.ability_levels[s]
+		if lvl <= 0 or not u.alive:
+			return
+		events.append(["fx", "aftershock", u.pos.x, u.pos.y, u.id])
+		for t in _query(u.pos, ab.aoe + 1.0):
+			if t.team != u.team and t.alive and not t.is_building() and t.pos.distance_to(u.pos) <= ab.aoe + t.radius:
+				_damage(u, t, ab.damage[lvl - 1], true, false)
+				if t.alive:
+					t.stun_time = maxf(t.stun_time, ab.stun[lvl - 1])
+		return
+
+
+## Eco del sisma: danno a tutti i nemici vicini; poco dopo ognuno riceve un'eco da ciascun nemico colpito,
+## sé stesso compreso (gli eroi valgono due echi, massimo echo_max). L'eco arriva con _update_delayed.
+func _echo_slam(u: Unit, ab: Dictionary, lvl: int, dmg: float) -> void:
+	var victims: Array[Unit] = []
+	var sources := 0
+	for t in _query(u.pos, ab.aoe + 1.0):
+		if t.team != u.team and t.alive and not t.is_building() and t.pos.distance_to(u.pos) <= ab.aoe + t.radius:
+			victims.append(t)
+			sources += 2 if t.is_hero() else 1
+	# evento con le posizioni dei colpiti (al massimo 12) per gli echi visivi
+	var fx := ["fx", "echo_slam", u.pos.x, u.pos.y, u.id, float(ab.aoe)]
+	for i in mini(victims.size(), 12):
+		fx.append(victims[i].pos.x)
+		fx.append(victims[i].pos.y)
+	events.append(fx)
+	# ogni eco colpisce tutti i nemici colpiti, compreso chi l'ha generata: un eroe da solo riceve le sue due
+	var echoes := mini(sources, int(ab.echo_max))
+	var hits: Array = []
+	for t in victims:
+		hits.append([t.id, float(ab.echo[lvl - 1]) * echoes])
+	for t in victims:
+		_damage(u, t, dmg, true, false)
+	if not hits.is_empty():
+		delayed.append({"time": time + float(ab.echo_delay), "type": "echo", "src": u.id, "team": u.team, "hits": hits})
 
 
 func _learn(u: Unit, hd: HeroData, slot: int) -> void:
@@ -464,6 +571,8 @@ func tick() -> void:
 	var p1 := Time.get_ticks_usec()
 	_update_projectiles(dt)
 	_update_delayed()
+	if not walls.is_empty():
+		walls = walls.filter(func(w): return time < w.until)
 	var p2 := Time.get_ticks_usec()
 	_separate()
 	var p3 := Time.get_ticks_usec()
@@ -492,6 +601,8 @@ func _update_unit(u: Unit, dt: float) -> void:
 		u.slow_time -= dt
 	if u.shield_time > 0.0:
 		u.shield_time -= dt
+	if u.empower_time > 0.0:
+		u.empower_time -= dt
 	if u.dash_time > 0.0:
 		_update_dash(u, dt)
 		return
@@ -539,6 +650,8 @@ func _update_unit(u: Unit, dt: float) -> void:
 			u.state = Unit.State.IDLE
 	if t != null:
 		var reach := u.attack_range + u.radius + t.radius
+		if u.empower_time > 0.0:
+			reach += u.empower_range     # Totem del sisma: il colpo potenziato arriva più lontano
 		if u.pos.distance_to(t.pos) <= reach:
 			u.facing = (t.pos - u.pos).angle()
 			if u.attack_cd <= 0.0:
@@ -571,16 +684,24 @@ func _update_dash(u: Unit, dt: float) -> void:
 	var to := u.dash_goal - u.pos
 	var step := u.dash_speed * dt
 	var arrived := to.length() <= step or u.dash_time <= 0.0
-	if arrived:
-		u.pos = MapData.clamp_walkable(_push_out_of_buildings(u.dash_goal, u.radius, to.normalized()), u.radius)
-	else:
-		u.pos = MapData.clamp_walkable(_push_out_of_buildings(u.pos + to.normalized() * step, u.radius, to.normalized()), u.radius)
+	var np := u.dash_goal if arrived else u.pos + to.normalized() * step
+	np = _push_out_of_buildings(np, u.radius, to.normalized())
+	# la carica si ferma contro i muri della Fenditura; il balzo ci passa sopra (ma non atterra dentro)
+	if not u.dash_leap or arrived:
+		np = _push_out_of_walls(np, u.radius, to.normalized())
+	u.pos = MapData.clamp_walkable(np, u.radius)
 	if not arrived:
 		return
 	u.dash_time = 0.0
 	u.state = Unit.State.IDLE
 	var hd := _hero_of(u)
 	if hd == null or u.dash_slot < 0:
+		return
+	if u.dash_leap:
+		u.dash_leap = false
+		var slot := u.dash_slot
+		u.dash_slot = -1
+		_totem_slam(u, hd, slot)
 		return
 	var ab: Dictionary = hd.abilities()[u.dash_slot]
 	var lvl: int = maxi(1, hd.ability_levels[u.dash_slot])
@@ -598,6 +719,10 @@ func _update_dash(u: Unit, dt: float) -> void:
 
 
 func _move_towards(u: Unit, goal: Vector2, dt: float) -> bool:
+	# un muro della Fenditura in mezzo: si punta all'estremità del muro (la meta resta la stessa)
+	var final_goal := goal
+	if not walls.is_empty():
+		goal = MapData.wall_detour(u.pos, goal, u.radius, walls)
 	var to := goal - u.pos
 	var dist := to.length()
 	var step := u.current_move_speed() * dt
@@ -608,8 +733,28 @@ func _move_towards(u: Unit, goal: Vector2, dt: float) -> bool:
 	var reached := dist <= step
 	var np := goal if reached else u.pos + to / dist * step
 	np = _push_out_of_buildings(np, u.radius, to / dist)
+	if not walls.is_empty():
+		np = _push_out_of_walls(np, u.radius, to / dist)
+		if goal != final_goal:
+			reached = false     # arrivati alla tappa oltre il muro: si prosegue verso la meta
+		# il punto d'arrivo dentro il muro non si raggiunge mai: basta arrivarci vicino
+		elif not reached and np.distance_to(goal) < u.radius + 0.9 and _inside_wall(goal):
+			reached = true
 	u.pos = MapData.clamp_walkable(np, u.radius)
 	return reached
+
+
+func _push_out_of_walls(p: Vector2, r: float, dir: Vector2) -> Vector2:
+	for w in walls:
+		p = MapData.push_from_wall(p, r, dir, w.a, w.b, w.w)
+	return p
+
+
+func _inside_wall(p: Vector2) -> bool:
+	for w in walls:
+		if Geometry2D.get_closest_point_to_segment(p, w.a, w.b).distance_to(p) < w.w:
+			return true
+	return false
 
 
 func _push_out_of_buildings(p: Vector2, r: float, dir: Vector2) -> Vector2:
@@ -759,6 +904,11 @@ func _attack_hit(u: Unit) -> void:
 			ptype = "siege"
 		var start := u.pos + Vector2.from_angle(u.facing) * (u.radius + 0.3)
 		_spawn_projectile(ptype, u, t.id, start, Vector2.ZERO, u.projectile_speed, u.damage, 0.0, 0.0)
+	elif u.empower_time > 0.0:
+		# Totem del sisma: colpo potenziato (consuma la carica)
+		u.empower_time = 0.0
+		events.append(["fx", "totem_hit", t.pos.x, t.pos.y, u.id])
+		_damage(u, t, u.damage * u.empower_mult, false, true)
 	else:
 		_damage(u, t, u.damage, false, true)
 
@@ -826,6 +976,13 @@ func _update_delayed() -> void:
 		if time >= e.time:
 			delayed.remove_at(i)
 			var src: Unit = units.get(e.src)
+			if e.type == "echo":
+				for h in e.hits:
+					var t: Unit = units.get(h[0])
+					if t != null and t.alive:
+						events.append(["fx", "echo_hit", t.pos.x, t.pos.y, e.src])
+						_damage(src, t, h[1], true, false)
+				continue
 			events.append(["fx", "meteor_hit", e.pos.x, e.pos.y, e.src])
 			for t in _query(e.pos, e.aoe + 1.0):
 				if t.team != e.team and t.alive and not t.is_building() and t.pos.distance_to(e.pos) <= e.aoe + t.radius:
@@ -883,7 +1040,9 @@ func _kill(u: Unit, killer: Unit) -> void:
 	u.windup = 0.0
 	u.has_move_goal = false
 	u.dash_time = 0.0
+	u.dash_leap = false
 	u.shield_time = 0.0
+	u.empower_time = 0.0
 	u.death_time = time
 	events.append(["death", u.id, killer.id if killer else 0])
 	var killer_hd: HeroData = _hero_of(killer) if killer != null else null
@@ -1126,7 +1285,10 @@ func _separate() -> void:
 					b.pos += n2 * push * wb
 					pushed.append(a)
 					pushed.append(b)
+	var has_walls := not walls.is_empty()
 	for u in pushed:
+		if has_walls and not u.dash_leap:
+			u.pos = _push_out_of_walls(u.pos, u.radius, Vector2.ZERO)
 		u.pos = MapData.clamp_walkable(u.pos, u.radius)
 
 
@@ -1176,7 +1338,7 @@ func build_snapshot(full: bool) -> PackedByteArray:
 			buf.put_u8(qf)
 		if mask & M_HP: buf.put_u16(qhp)
 		if mask & M_MANA: buf.put_u16(qmana)
-		if mask & M_FLAGS: buf.put_u8(fl)
+		if mask & M_FLAGS: buf.put_u16(fl)
 		if mask & M_MAX:
 			buf.put_u16(qmax)
 			buf.put_u16(qmaxm)

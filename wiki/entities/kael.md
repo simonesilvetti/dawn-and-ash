@@ -8,7 +8,7 @@ sources: [scripts/autoload/Game.gd, scripts/world/UnitView.gd, scripts/sim/HeroD
 
 # Kael, il Piromante
 
-Giovane mago della [[lega-dell-alba]] che ha imparato a domare il fuoco dei cristalli. Eroe a distanza; dal 2026-10-22 si può scegliere anche [[peppino]] (guerriero corpo a corpo). Entrambi gli eroi giocano per tutte e due le fazioni, con colori diversi.
+Giovane mago della [[lega-dell-alba]] che ha imparato a domare il fuoco dei cristalli. Eroe a distanza; dal 2026-10-22 si può scegliere anche [[peppino]] (guerriero corpo a corpo), dal 2026-11-16 [[gorm]]. Entrambi gli eroi giocano per tutte e due le fazioni, con colori diversi.
 
 ## Aspetto
 - Modello KayKit **Mage** (`assets/models/chars/Mage.glb`), scala 0.95, **senza cappello** (dall'alto il cappello copriva tutto il personaggio, vedi [[decisioni]]).

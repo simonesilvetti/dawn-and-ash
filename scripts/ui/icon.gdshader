@@ -1,7 +1,7 @@
 shader_type canvas_item;
 // Icone procedurali di abilità e oggetti (niente texture esterne): forme SDF con sfumature, bagliori e rumore.
 // icon: 0 Palla di fuoco, 1 Scatto, 2 Onda d'urto, 3 Meteora; 4-7 Peppino (Fendente, Carica, Scudo di ferro, Spaccaterra);
-// 10+ oggetti (vedi IconRect.IDS).
+// Gorm: 8 Fenditura, 9 Totem del sisma, 19 Scossa di ritorno, 20 Eco del sisma; 10-18 oggetti (vedi IconRect.IDS).
 // dim > 0 = icona spenta (abilità non imparata o oggetto non acquistabile).
 
 uniform int icon = 0;
@@ -19,6 +19,11 @@ float sd_seg(vec2 p, vec2 a, vec2 b) {
 	vec2 pa = p - a, ba = b - a;
 	float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
 	return length(pa - ba * h);
+}
+// punta di roccia: triangolo con la base centrata in b, larga 2w e alta h
+float sd_spike(vec2 p, vec2 b, float w, float h) {
+	vec2 q = p - b;
+	return max(-q.y, (abs(q.x) * h + w * q.y - w * h) / sqrt(h * h + w * w));
 }
 float seg_t(vec2 p, vec2 a, vec2 b) { vec2 pa = p - a, ba = b - a; return clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0); }
 mat2 rot(float a) { return mat2(vec2(cos(a), sin(a)), vec2(-sin(a), cos(a))); }
@@ -168,6 +173,91 @@ void fragment() {
 		}
 		col = over(col, mix(vec3(0.6, 0.64, 0.72), vec3(0.98, 0.98, 1.0), step(0.0, p.x)), fill(sd_box(p - vec2(0.0, 0.42), vec2(0.07, 0.42))));
 		col = over(col, vec3(0.92, 0.72, 0.3), fill(sd_box(p - vec2(0.0, 0.82), vec2(0.24, 0.05))));
+	} else if (icon == 8) {
+		// Fenditura: crepa incandescente che corre verso l'orizzonte tra due file di punte di roccia
+		col = mix(vec3(0.16, 0.08, 0.05), vec3(0.04, 0.03, 0.05), UV.y * 0.2 + (1.0 - UV.y) * 0.8);
+		float horizon = p.y - 0.25;
+		col = over(col, mix(vec3(0.36, 0.25, 0.16), vec3(0.2, 0.13, 0.08), clamp(-p.y, 0.0, 1.0)), 1.0 - smoothstep(-0.01, 0.01, horizon));
+		float depth = clamp((0.25 - p.y) / 1.25, 0.0, 1.0);          // 0 all'orizzonte, 1 in primo piano
+		float cx = sin(p.y * 14.0) * 0.04 * depth;
+		float crack = max(abs(p.x - cx) - mix(0.01, 0.1, depth), horizon);
+		col += vec3(1.0, 0.5, 0.12) * glow(crack, 10.0) * 0.9 * (1.0 - smoothstep(-0.02, 0.04, horizon));
+		col = over(col, vec3(1.0, 0.86, 0.45), fill(crack));
+		for (int i = 0; i < 4; i++) {
+			float k = float(i) / 3.0;                                   // 0 lontano, 1 vicino
+			float y = mix(0.2, -0.75, k);
+			float sz = mix(0.12, 0.42, k);
+			float xo = mix(0.1, 0.36, k);
+			for (int side = -1; side <= 1; side += 2) {
+				vec2 bp = vec2(float(side) * (xo + sz * 0.5), y);
+				float sp = sd_spike(p, bp, sz * 0.55, sz * 1.5);
+				vec3 rc = mix(vec3(0.42, 0.37, 0.33), vec3(0.72, 0.66, 0.6), step(0.0, (p.x - bp.x) * float(-side)));
+				col = over(col, rc * (0.75 + 0.25 * k), fill(sp));
+				col += vec3(1.0, 0.45, 0.1) * glow(sp, 16.0) * 0.25 * (1.0 - step(0.0, -sp));
+			}
+		}
+	} else if (icon == 9) {
+		// Totem del sisma: totem di pietra in diagonale con la fascia di rune accesa e le braci
+		col = bg_radial(p - vec2(0.3, 0.3), vec3(0.35, 0.16, 0.05), vec3(0.03, 0.02, 0.02));
+		vec2 q = rot(0.62) * (p - vec2(0.05, 0.0));
+		float shaft = sd_box(q - vec2(0.0, -0.3), vec2(0.055, 0.62));
+		col = over(col, mix(vec3(0.35, 0.2, 0.1), vec3(0.55, 0.36, 0.2), step(0.0, q.x)), fill(shaft));
+		col = over(col, vec3(0.2, 0.1, 0.05), fill(sd_box(q - vec2(0.0, -0.55), vec2(0.075, 0.035))));
+		float head = sd_box(q - vec2(0.0, 0.48), vec2(0.27 - (q.y - 0.48) * 0.12, 0.3)) - 0.03;
+		float pulse = 0.8 + 0.2 * sin(TIME * 4.0);
+		col += vec3(1.0, 0.5, 0.12) * glow(head, 6.0) * 0.55 * pulse;
+		vec3 stone = mix(vec3(0.45, 0.41, 0.37), vec3(0.72, 0.67, 0.6), step(0.0, q.x) * 0.6 + (q.y - 0.2) * 0.4);
+		col = over(col, stone, fill(head));
+		float band = max(head, abs(q.y - 0.42) - 0.05);
+		col = over(col, mix(vec3(1.0, 0.55, 0.12), vec3(1.0, 0.95, 0.7), 0.5 + 0.5 * sin(q.x * 30.0)) * pulse, fill(band));
+		col = over(col, vec3(1.0, 0.85, 0.5), fill(sd_box(q - vec2(-0.1, 0.62), vec2(0.035, 0.035))) * pulse);
+		col = over(col, vec3(1.0, 0.85, 0.5), fill(sd_box(q - vec2(0.1, 0.62), vec2(0.035, 0.035))) * pulse);
+		for (int i = 0; i < 4; i++) {
+			vec2 c = vec2(0.25 + float(i) * 0.12 - 0.2, 0.35 + fract(TIME * 0.6 + float(i) * 0.27) * 0.6);
+			col += vec3(1.0, 0.6, 0.2) * glow(sd_circle(p - c, 0.02), 30.0) * 0.8;
+		}
+	} else if (icon == 19) {
+		// Scossa di ritorno: anelli di terra schiacciati attorno al punto d'impatto, sassi e stelline
+		col = bg_radial(p - vec2(0.0, -0.3), vec3(0.28, 0.18, 0.08), vec3(0.03, 0.02, 0.02));
+		vec2 q = (p - vec2(0.0, -0.3)) * vec2(1.0, 2.4);
+		float r = length(q);
+		float wave = fract(TIME * 0.7);
+		for (int i = 0; i < 3; i++) {
+			float rr = 0.3 + float(i) * 0.3 + wave * 0.3;
+			float a = (1.0 - smoothstep(0.0, 0.06, abs(r - rr))) * (1.0 - float(i) * 0.25) * (1.0 - wave * 0.5);
+			col = over(col, vec3(0.95, 0.72, 0.42), a);
+		}
+		col += vec3(1.0, 0.6, 0.25) * glow(sd_circle(q, 0.12), 6.0) * 0.7;
+		for (int i = 0; i < 3; i++) {
+			float ang = float(i) * 2.1 + 0.5;
+			vec2 c = vec2(cos(ang) * 0.6, -0.25 + abs(sin(ang)) * 0.25 + 0.15);
+			col = over(col, vec3(0.5, 0.42, 0.36), fill(sd_box(rot(ang) * (p - c), vec2(0.07, 0.055))));
+		}
+		for (int i = 0; i < 3; i++) {
+			float ang = TIME * 2.5 + float(i) * 2.094;
+			vec2 c = vec2(cos(ang) * 0.38, 0.5 + sin(ang) * 0.1);
+			vec2 sq = abs(p - c);
+			float star = sq.x * sq.y * 70.0 + max(sq.x, sq.y) * 4.0;
+			col += vec3(1.0, 0.92, 0.5) * (1.0 - smoothstep(0.15, 0.45, star));
+		}
+	} else if (icon == 20) {
+		// Eco del sisma: impatto centrale e onde che rimbalzano da più punti
+		col = bg_radial(p, vec3(0.3, 0.12, 0.3), vec3(0.03, 0.01, 0.04));
+		float t = fract(TIME * 0.5);
+		vec2 srcs[4] = vec2[](vec2(0.0, 0.0), vec2(-0.55, 0.4), vec2(0.6, 0.35), vec2(0.15, -0.6));
+		for (int i = 0; i < 4; i++) {
+			float tt = fract(t + float(i) * 0.25);
+			float rr = tt * (i == 0 ? 1.2 : 0.7);
+			float a = (1.0 - smoothstep(0.0, 0.05, abs(length(p - srcs[i]) - rr))) * (1.0 - tt);
+			vec3 c = i == 0 ? vec3(1.0, 0.75, 0.4) : vec3(0.85, 0.5, 1.0);
+			col = over(col, c, a);
+			if (i > 0) {
+				col += vec3(0.85, 0.5, 1.0) * glow(sd_circle(p - srcs[i], 0.07), 12.0) * 0.8;
+			}
+		}
+		float core = sd_circle(p, 0.2) + (n - 0.5) * 0.1;
+		col += vec3(1.0, 0.6, 0.25) * glow(core, 5.0) * 0.8;
+		col = over(col, vec3(1.0, 0.9, 0.65), fill(core));
 	} else if (icon == 10 || icon == 18) {
 		// Spada lunga / Lama del vampiro
 		bool vamp = icon == 18;

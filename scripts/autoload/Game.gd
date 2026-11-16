@@ -2,7 +2,7 @@ extends Node
 ## Stato globale: costanti di gioco e bilanciamento, impostazioni utente, input map.
 ## Tutti i numeri di bilanciamento stanno qui (vedi wiki/concepts/bilanciamento.md).
 
-const VERSION := "0.2.0"
+const VERSION := "0.3.0"
 const APP_ID := "com.atomicgrove.dawnandash"   # identificativo dell'applicazione (.desktop, icona)
 const AUTHOR := "Simone Silvetti"
 const WEBSITE := "simonesilvetti.com"
@@ -35,7 +35,7 @@ const MAP_HALF := 130.0
 # Ogni eroe ha statistiche (livello 1, +per livello) e 4 abilità (Q, W, E, R).
 # target delle abilità: "dir" (direzione), "point" (punto), "none" (attorno all'eroe)
 const HERO_MAX_LEVEL := 10
-const HERO_ORDER := ["kael", "peppino"]
+const HERO_ORDER := ["kael", "peppino", "gorm"]
 const HEROES := {
 	"kael": {
 		"name": "Kael",
@@ -133,6 +133,60 @@ const HEROES := {
 				"desc": "Peppino abbatte la spada al suolo: una crepa si apre in linea retta, danneggiando e stordendo i nemici sul suo percorso.",
 				"target": "dir", "range": 12.0, "width": 2.2, "stun": 1.6,
 				"damage": [260.0, 400.0, 540.0], "mana": [180.0, 180.0, 180.0], "cooldown": [60.0, 50.0, 40.0],
+				"max_level": 3, "req_level": 6, "cast_point": 0.5,
+			},
+		],
+	},
+	# Gorm: ispirato all'Earthshaker di Dota 2. Ogni abilità innesca la Scossa di ritorno (passiva, E).
+	"gorm": {
+		"name": "Gorm",
+		"title": "lo Scuotiterra",
+		"desc": "Gigante corpo a corpo con un totem di pietra: spacca la terra, alza muri di roccia e stordisce a ogni colpo.",
+		"model": "Barbarian",
+		"respawn_line": "La terra trema ancora!",
+		"hp": 680.0, "hp_per_lvl": 88.0,
+		"hp_regen": 2.6, "hp_regen_per_lvl": 0.25,
+		"mana": 270.0, "mana_per_lvl": 32.0,
+		"mana_regen": 1.4, "mana_regen_per_lvl": 0.13,
+		"damage": 48.0, "damage_per_lvl": 4.3,
+		"attack_interval": 1.45, "attack_interval_per_lvl": -0.04, "attack_interval_min": 0.8,
+		"attack_range": 1.7, "attack_point": 0.4,
+		"projectile_speed": 0.0,
+		"move_speed": 7.0,
+		"armor": 2.5, "armor_per_lvl": 0.35,
+		"magic_resist": 0.33,
+		"radius": 0.75,
+		"abilities": [
+			{
+				"key": "Q", "id": "fissure", "name": "Fenditura",
+				"desc": "Gorm abbatte il totem: la terra si squarcia in linea retta e si alza un muro di roccia invalicabile. I nemici sulla linea sono storditi.",
+				"target": "dir", "range": 12.0, "width": 1.2, "wall_width": 0.75, "wall_time": 5.0,
+				"stun": [0.7, 0.8, 0.9, 1.0],
+				"damage": [100.0, 150.0, 200.0, 250.0], "mana": [110.0, 120.0, 130.0, 140.0], "cooldown": [18.0, 17.0, 16.0, 15.0],
+				"max_level": 4, "req_level": 1, "cast_point": 0.5,
+			},
+			{
+				"key": "W", "id": "totem", "name": "Totem del sisma",
+				"desc": "Gorm balza fino al punto indicato (o resta dov'è, se il punto è vicino) e carica il totem: il prossimo attacco infligge danni moltiplicati.",
+				"target": "point", "range": 7.0, "aoe": 3.0, "leap_time": 0.45, "duration": 12.0, "attack_range_bonus": 1.0,
+				"bonus": [0.8, 1.4, 2.0, 2.6],
+				"damage": [0.0, 0.0, 0.0, 0.0], "mana": [55.0, 55.0, 55.0, 55.0], "cooldown": [12.0, 11.0, 10.0, 9.0],
+				"max_level": 4, "req_level": 1, "cast_point": 0.3,
+			},
+			{
+				"key": "E", "id": "aftershock", "name": "Scossa di ritorno",
+				"desc": "Passiva. Ogni volta che Gorm usa un'abilità la terra trema attorno a lui: danno magico e stordimento ai nemici vicini.",
+				"target": "passive", "range": 0.0, "aoe": 3.0,
+				"stun": [0.3, 0.4, 0.5, 0.6],
+				"damage": [40.0, 60.0, 80.0, 100.0], "mana": [0.0, 0.0, 0.0, 0.0], "cooldown": [0.0, 0.0, 0.0, 0.0],
+				"max_level": 4, "req_level": 1, "cast_point": 0.0,
+			},
+			{
+				"key": "R", "id": "echo_slam", "name": "Eco del sisma",
+				"desc": "Gorm colpisce il suolo con tutta la sua forza: un'onda danneggia i nemici vicini e ognuno di loro rimanda un'eco a tutti i nemici colpiti, sé stesso compreso. Gli eroi echeggiano due volte.",
+				"target": "none", "range": 0.0, "aoe": 7.0, "echo_delay": 0.35, "echo_max": 10,
+				"echo": [35.0, 48.0, 60.0],
+				"damage": [170.0, 270.0, 370.0], "mana": [200.0, 220.0, 240.0], "cooldown": [75.0, 65.0, 55.0],
 				"max_level": 3, "req_level": 6, "cast_point": 0.5,
 			},
 		],

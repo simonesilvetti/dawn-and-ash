@@ -67,6 +67,56 @@ static func clamp_walkable(p: Vector2, r: float = 0.0) -> Vector2:
 	return best
 
 
+## Muro a segmento (Fenditura di Gorm): spinge fuori dal muro un cerchio di raggio r che lo attraversa.
+## dir = direzione di marcia (serve solo se il centro è esattamente sulla linea: torna dal lato da cui arriva).
+## Usata dalla simulazione e dalla predizione del client (stesse regole).
+static func push_from_wall(p: Vector2, r: float, dir: Vector2, a: Vector2, b: Vector2, half_w: float) -> Vector2:
+	var c := Geometry2D.get_closest_point_to_segment(p, a, b)
+	var d := p - c
+	var min_d := half_w + r
+	var l2 := d.length_squared()
+	if l2 >= min_d * min_d:
+		return p
+	var n: Vector2
+	var l := sqrt(l2)
+	if l > 0.001:
+		n = d / l
+	else:
+		n = (b - a).normalized().orthogonal()
+		if n.dot(dir) > 0.0:
+			n = -n
+	return c + n * min_d
+
+
+## Aggiramento dei muri: se il tragitto diretto da p a goal attraversa un muro, restituisce una tappa
+## all'angolo oltre l'estremità più conveniente, dal lato della meta (percorso p -> angolo -> meta più corto);
+## altrimenti goal. Dall'angolo la linea verso la meta è libera; per arrivarci la spinta del muro fa
+## scivolare l'unità lungo il fianco e attorno alla punta. walls: Array di {a, b, w}; nessuna memoria.
+static func wall_detour(p: Vector2, goal: Vector2, r: float, walls: Array) -> Vector2:
+	for w in walls:
+		var a: Vector2 = w.a
+		var b: Vector2 = w.b
+		var clear: float = w.w + r
+		var cp := Geometry2D.get_closest_points_between_segments(p, goal, a, b)
+		if cp[0].distance_to(cp[1]) >= clear - 0.02:
+			continue
+		# meta dentro il muro: ci si ferma contro il muro (lo gestisce chi muove l'unità)
+		if Geometry2D.get_closest_point_to_segment(goal, a, b).distance_to(goal) < clear:
+			continue
+		var t := (b - a).normalized()
+		var n := t.orthogonal()
+		var side := signf((goal - a).dot(n))
+		if side == 0.0:
+			side = signf((p - a).dot(n)) if (p - a).dot(n) != 0.0 else 1.0
+		var off := n * side * (clear + 0.35)
+		var ea := a - t * (clear + 0.35) + off
+		var eb := b + t * (clear + 0.35) + off
+		var da := p.distance_to(ea) + ea.distance_to(goal)
+		var db := p.distance_to(eb) + eb.distance_to(goal)
+		return ea if da < db else eb
+	return goal
+
+
 static func to3(p: Vector2, y: float = 0.0) -> Vector3:
 	return Vector3(p.x, y, p.y)
 

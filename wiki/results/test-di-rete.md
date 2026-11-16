@@ -2,7 +2,7 @@
 title: Risultati dei test di rete
 type: result
 tags: [rete, lag]
-updated: 2026-10-26
+updated: 2026-11-16
 sources: [tools/net_tests.sh, tools/windows_tests.sh]
 ---
 
@@ -34,3 +34,10 @@ Robustezza: client terminato a forza → vittoria a tavolino per l'host, ritorno
 - Prima versione: errore 0.20–0.38 m e scatti dei creep di 0.93 m.
 - Fix 1: campione iniziale al tempo di rendering e unità ferme non estrapolate → scatti 0.05–0.17 m.
 - Fix 2: riconciliazione con ack dei comandi (indipendente dal jitter) → errore ≤ 0.17 m. → [[netcode]]
+
+Verifica del 2026-11-16 (dopo l'aggiunta di [[gorm]], flag a 16 bit), 30 s: 0 ms 0.153 m (max 1.21), 80 ms 0.174 (1.57),
+150+jitter+3% 0.204 (2.38, 33 persi), Peppino a 80 ms 0.178 (1.54), **Gorm a 80 ms 0.158 (1.48)** con muro e totem carico
+visti dal client, 250+5% 0.197 (1.99, 50 persi); banda 8.4–8.5 KB/s come prima.
+
+> [!warning] Il caso di robustezza fallisce ("nuova partita di allenamento dopo la disconnessione") **anche sul commit
+> di partenza `1ea3f01`**, con la CPU occupata da altri processi: non dipende da Gorm. Da ricontrollare a macchina scarica.

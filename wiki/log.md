@@ -141,3 +141,21 @@ Versione portata a 0.2.0 (`project.godot`, `Game.VERSION`) per la nuova Release 
 Nuovo `tools/windows_tests.sh`: l'exe Windows sotto Wine 11.17 (prefisso temporaneo) supera l'autotest, produce i 24
 screenshot con Vulkan identici a quelli Linux e gioca in rete con la versione Linux in tutte e due le direzioni, anche
 con lag (vedi [[test-di-rete]], [[build-e-distribuzione]]). Restano da provare su Windows vero SmartScreen, firewall e driver.
+
+## [2026-11-16] ingest | Nuovo eroe Gorm, lo Scuotiterra
+Richiesta dell'utente: un nuovo personaggio che stordisce, ispirato all'Earthshaker di Dota 2, fatto bene, con
+animazioni carine e leggere. [[gorm]]: modello Barbarian con un totem costruito da primitive (rune che si accendono);
+Fenditura (danno, stordimento e **muro di roccia** che blocca il passaggio per 5 s), Totem del sisma (balzo, colpo
+potenziato), Scossa di ritorno (**passiva**: ogni abilità stordisce attorno), Eco del sisma (danno + echi).
+- Simulazione: muri con spinta e aggiramento (`MapData.push_from_wall`, `MapData.wall_detour`), balzo sopra i muri,
+  attacco potenziato, abilità passive, effetti ritardati generalizzati (vedi [[simulazione]]).
+- Rete: flag degli snapshot a 16 bit, muri nella predizione del client, versione 0.3.0 (vedi [[netcode]]).
+- Grafica: rocce che emergono e sprofondano, onda sismica, stelline dello stordimento per tutte le unità, anteprima di
+  mira in linea; icone procedurali nuove; menu con tre schede (vedi [[rendering-e-vfx]], [[interfaccia]]).
+- Due versioni dell'aggiramento dei muri non funzionavano (scivolamento con minimo locale a metà muro; tappa sull'asse
+  del muro dalla quale la meta restava coperta dalla punta); la terza punta all'angolo dal lato della meta.
+
+## [2026-11-16] test | Verifica di Gorm
+Import senza errori; autotest OK (sezione nuova su Gorm); test di rete OK compreso `gorm_80ms`, tranne la robustezza,
+che fallisce anche sul commit di partenza (vedi [[test-di-rete]]). Benchmark solo A/B a CPU carica: nessuna differenza
+oltre il rumore (vedi [[benchmark]]). Taratura con i duelli e squilibri rimasti in [[bilanciamento]].

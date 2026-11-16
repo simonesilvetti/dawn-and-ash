@@ -2,7 +2,7 @@
 title: Rendering ed effetti
 type: system
 tags: [grafica, vfx]
-updated: 2026-10-22
+updated: 2026-11-16
 sources: [scripts/world/MapBuilder.gd, scripts/world/foliage.gdshader, scripts/world/grass.gdshader, scripts/world/wake.gdshader, scripts/world/ground.gdshader, scripts/world/UnitView.gd, scripts/vfx/Vfx.gd, scripts/vfx/VfxLib.gd, scripts/vfx/fire.gdshader, scripts/vfx/tail.gdshader, scripts/vfx/puff.gdshader, scripts/world/Terrain.gd, scripts/world/water.gdshader, scripts/world/Scenery.gd]
 ---
 
@@ -49,6 +49,15 @@ Pool per proiettili, gruppi di particelle, anelli, colonne, muri di fiamme, mete
   `strength` 1.1) finché dura; Spaccaterra = **crepa incandescente** (`crack.gdshader`: linea frastagliata dal rumore,
   più larga al centro, che si apre in 0.25 s verso la punta e si raffredda in 2.2 s), rocce e polvere in sequenza,
   solco scuro (Decal allungato), luce e scossa.
+- [[gorm]] (dal 2026-11-16): **muro di rocce** della Fenditura (13 sassi KayKit in un'istanza dal pool, scalati sulla
+  misura vera di ogni mesh, che emergono in sequenza con un rimbalzo e poi sprofondano; crepa incandescente per tutta
+  la durata), anelli e muretti color terra della Scossa di ritorno, onda sismica dell'Eco del sisma (cilindro con
+  `fire.gdshader` color terra) con risonanza sui nemici colpiti, colonna di rune del Totem. Totem dell'eroe con fascia di
+  rune emissiva, braci e luce quando è carico. Dettagli in [[gorm]].
+- **Stordimento visibile** (2026-11-16): tre stelline billboard (mesh e materiale condivisi) che girano sopra la testa
+  di qualsiasi unità stordita (`UnitView._update_stun_fx`, create alla prima occorrenza).
+- **Anteprima di mira in linea** (`aim_line.gdshader`): rettangolo a terra largo quanto l'area colpita, con frecce che
+  scorrono verso la punta, per le abilità `dir` con `width` (Spaccaterra, Fenditura).
 Scossa della telecamera (`Vfx.shake`), hit-stop in allenamento.
 
 ## Qualità (`World._apply_quality`, `MapBuilder`, `Scenery`)

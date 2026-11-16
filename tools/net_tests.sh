@@ -55,6 +55,7 @@ run_case "lan_0ms" ""
 run_case "80ms" "latency=80"
 run_case "150ms_jitter30_loss3" "latency=150,jitter=30,loss=3"
 run_case "peppino_80ms" "latency=80" peppino
+run_case "gorm_80ms" "latency=80" gorm
 run_case "250ms_loss5" "latency=250,loss=5"
 run_robust
 exit $fail

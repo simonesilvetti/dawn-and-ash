@@ -56,6 +56,7 @@ var _pred_hist: Array = []              # [[local_time, pos]]
 var _srv_sample: Array = []             # ultimo stato server del proprio eroe: [local_time_arrivo, pos]
 var _correction := Vector2.ZERO         # correzione residua da applicare gradualmente
 var _last_cmd_time: float = -100.0
+var _walls: Array = []                  # muri della Fenditura noti al client: {a, b, w, until (tempo locale)}
 var _cmd_times: Dictionary = {}         # seq -> istante locale di invio
 var _srv_local_time: float = -1.0
 var _latest_snap_t: float = -1.0
@@ -72,6 +73,7 @@ var attack_move_mode := false
 var _drag_timer: float = 0.0
 var _range_ring: MeshInstance3D
 var _aoe_ring: MeshInstance3D
+var _aim_line: MeshInstance3D           # anteprima delle abilità in linea (Spaccaterra, Fenditura)
 var _cmd_seq: int = 0
 var input_enabled := true
 var _music_state := "calm"
@@ -166,6 +168,18 @@ func _build_target_rings() -> void:
 		add_child(mi)
 		if i == 0: _range_ring = mi
 		else: _aoe_ring = mi
+	_aim_line = MeshInstance3D.new()
+	var lq := QuadMesh.new()
+	lq.size = Vector2(1, 1)
+	lq.orientation = PlaneMesh.FACE_Y
+	_aim_line.mesh = lq
+	var lm := ShaderMaterial.new()
+	lm.shader = load("res://scripts/vfx/aim_line.gdshader")
+	lm.set_shader_parameter("color", Color(1.0, 0.6, 0.25, 0.85))
+	_aim_line.material_override = lm
+	_aim_line.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_aim_line.visible = false
+	add_child(_aim_line)
 
 
 # ============================================================================
@@ -221,6 +235,8 @@ func hero_of_unit(id: int) -> HeroData:
 
 func _process(delta: float) -> void:
 	_local_time += delta
+	if not _walls.is_empty():
+		_walls = _walls.filter(func(w): return _local_time < w.until)
 	var t0 := Time.get_ticks_usec()
 	if is_server:
 		_server_process(delta)
@@ -433,7 +449,7 @@ func client_receive_snapshot(data: PackedByteArray) -> void:
 		if mask & Sim.M_HP: hp = buf.get_u16()
 		if mask & Sim.M_MANA: mana = buf.get_u16()
 		var fl := -1
-		if mask & Sim.M_FLAGS: fl = buf.get_u8()
+		if mask & Sim.M_FLAGS: fl = buf.get_u16()
 		var mh := -1.0
 		var mm := -1.0
 		if mask & Sim.M_MAX:
@@ -547,15 +563,24 @@ func _update_prediction(delta: float) -> void:
 	elif _pred_has_goal:
 		goal = _pred_goal
 	if goal != Vector2.INF:
+		var final_goal := goal
+		if not _walls.is_empty():
+			goal = MapData.wall_detour(_pred_pos, goal, u.radius, _walls)
 		var to := goal - _pred_pos
 		var step := _local_hero_speed() * delta
 		if to.length() <= step:
 			_pred_pos = goal
-			if _pred_target == 0:
+			if _pred_target == 0 and goal == final_goal:
 				_pred_has_goal = false
 		else:
 			_pred_pos += to.normalized() * step
-		_pred_pos = MapData.clamp_walkable(_client_push_buildings(_pred_pos, u.radius, to.normalized()), u.radius)
+		var pp := _client_push_buildings(_pred_pos, u.radius, to.normalized())
+		if not _walls.is_empty():
+			for w in _walls:
+				pp = MapData.push_from_wall(pp, u.radius, to.normalized(), w.a, w.b, w.w)
+			if _pred_has_goal and pp.distance_to(goal) < u.radius + 0.9 and _client_inside_wall(goal):
+				_pred_has_goal = false
+		_pred_pos = MapData.clamp_walkable(pp, u.radius)
 	# Riconciliazione: ogni nuovo stato del server viene confrontato con la predizione di allora.
 	# Lo stato del tick T riflette i comandi arrivati ~RTT/2 dopo l'invio e giunge qui ~RTT/2 dopo:
 	# corrisponde quindi alla predizione di (arrivo - RTT - mezzo tick).
@@ -589,6 +614,13 @@ func _update_prediction(delta: float) -> void:
 		_correction -= stepc
 		for h in _pred_hist:
 			h[1] = (h[1] as Vector2) + stepc
+
+
+func _client_inside_wall(p: Vector2) -> bool:
+	for w in _walls:
+		if Geometry2D.get_closest_point_to_segment(p, w.a, w.b).distance_to(p) < w.w:
+			return true
+	return false
 
 
 func _client_push_buildings(p: Vector2, r: float, dir: Vector2) -> Vector2:
@@ -816,6 +848,9 @@ func _ev_cast(id: int, slot: int) -> void:
 		_last_combat_time = game_time
 	if v and slot == 0 and u and u.subtype == "kael":
 		Audio.play_3d("fireball_cast", v.vis_pos)
+	if v and slot == 3 and u and u.subtype == "gorm":
+		# Eco del sisma: piccolo balzo sul posto, atterra quando l'abilità ha effetto
+		v.leap(Game.hero_abilities("gorm")[3].cast_point, 1.3)
 
 
 func _ev_proj(e: Array) -> void:
@@ -887,6 +922,32 @@ func _ev_fx(name: String, p: Vector2, src: int, e: Array = []) -> void:
 				Audio.play_3d("big_explosion", p3.lerp(b3, 0.4), 1.0)
 				_hit_stop(0.05)
 			return
+		"fissure":
+			if e.size() >= 8:
+				var fb := Vector2(e[5], e[6])
+				vfx.fissure(p3, MapData.to3(fb), float(e[7]), team)
+				Audio.play_3d("collapse", p3.lerp(MapData.to3(fb), 0.4), 2.0)
+				Audio.play_3d("big_explosion", p3, -3.0)
+				_hit_stop(0.05)
+				if not is_server:
+					var fab: Dictionary = Game.hero_abilities("gorm")[0]
+					_walls.append({"a": p, "b": fb, "w": float(fab.wall_width), "until": _local_time + float(e[7])})
+			return
+		"echo_slam":
+			var vics: Array = []
+			var k := 6
+			while k + 1 < e.size():
+				vics.append(MapData.to3(Vector2(e[k], e[k + 1])))
+				k += 2
+			vfx.echo_slam(p3, float(e[5]) if e.size() > 5 else 7.0, vics, team)
+			Audio.play_3d("big_explosion", p3, 4.0)
+			Audio.play_3d("collapse", p3, 0.0)
+			_hit_stop(0.07)
+			return
+		"totem_leap":
+			var lv: UnitView = views.get(src)
+			if lv and e.size() >= 8:
+				lv.leap(float(e[7]), 1.9)
 		"blink_in":
 			if u and u.owner_peer == local_peer:
 				_pred_active = false
@@ -907,6 +968,13 @@ func _ev_fx(name: String, p: Vector2, src: int, e: Array = []) -> void:
 			Audio.play_3d("explosion_1", p3, -2.0)
 			_hit_stop(0.03)
 		"iron_shield": Audio.play_3d("tower_hit", p3, -2.0)
+		"totem_leap": Audio.play_3d("blink", p3, -6.0)
+		"totem_slam": Audio.play_3d("shockwave", p3, -1.0)
+		"aftershock": Audio.play_3d("hit_punch_%d" % randi_range(1, 2), p3, 1.0)
+		"totem_hit":
+			Audio.play_3d("explosion_1", p3, -1.0)
+			_hit_stop(0.04)
+		"echo_hit": Audio.play_3d("hit_punch_%d" % randi_range(1, 2), p3, -3.0)
 		"meteor_hit":
 			Audio.play_3d("big_explosion", p3, 3.0)
 			_hit_stop(0.06)
@@ -1016,7 +1084,8 @@ func _update_views(delta: float) -> void:
 				moving = (v.vis_pos - p3).length() > 0.01
 		var speed := u.current_move_speed() if is_server else (_local_hero_speed() if u.is_hero() else u.move_speed)
 		var shielded := (u.shield_time > 0.0) if is_server else (u.flags & Unit.F_SHIELDED) != 0
-		v.update_visual(delta, p3, f, moving, speed, u.invulnerable, stunned, shielded)
+		var empower := (u.empower_time > 0.0) if is_server else (u.flags & Unit.F_EMPOWERED) != 0
+		v.update_visual(delta, p3, f, moving, speed, u.invulnerable, stunned, shielded, empower)
 		if v.anim and v.kind != Game.Kind.HERO:
 			var dx := p.x - cam_focus.x
 			var dz := p.y - cam_focus.z
@@ -1107,6 +1176,7 @@ func _update_targeting_rings() -> void:
 	var show := targeting_slot >= 0 and u != null
 	_range_ring.visible = show
 	_aoe_ring.visible = false
+	_aim_line.visible = false
 	if not show:
 		return
 	var ab: Dictionary = local_abilities()[targeting_slot]
@@ -1114,6 +1184,17 @@ func _update_targeting_rings() -> void:
 	var r: float = ab.range if ab.range > 0.0 else ab.get("aoe", 3.0)
 	_range_ring.position = hp + Vector3(0, 0.1, 0)
 	_range_ring.scale = Vector3(r, 1, r)
+	if ab.target == "dir" and ab.has("width"):
+		# rettangolo dalla posizione dell'eroe lungo la direzione del mouse, largo quanto l'area colpita
+		var gp0 := _mouse_ground()
+		if gp0 != Vector3.INF:
+			var d0 := Vector2(gp0.x - hp.x, gp0.z - hp.z)
+			if d0.length() > 0.1:
+				var w: float = float(ab.width) * 2.0
+				_aim_line.visible = true
+				_aim_line.position = hp + Vector3(d0.normalized().x, 0, d0.normalized().y) * ab.range * 0.5 + Vector3(0, 0.13, 0)
+				_aim_line.rotation = Vector3(0, -d0.angle(), 0)
+				_aim_line.scale = Vector3(ab.range, 1, w)
 	if ab.has("aoe"):
 		var gp := _mouse_ground()
 		if gp != Vector3.INF:
@@ -1227,6 +1308,9 @@ func try_ability(i: int) -> void:
 		Audio.play_ui("ui_error")
 		return
 	var gp := _mouse_ground()
+	if ab.target == "passive":
+		hud.notify("%s è un'abilità passiva" % ab.name, Color(0.8, 0.8, 0.7))
+		return
 	if ab.target == "none" or Game.settings.quick_cast:
 		if gp == Vector3.INF:
 			gp = local_hero_pos3()

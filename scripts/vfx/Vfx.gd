@@ -7,6 +7,7 @@ extends Node3D
 const MAX_LIGHTS := 4
 const MAX_DECALS := 10
 const MAX_SPARKS := 12
+const ROCK_COUNT := 13                # rocce di un muro della Fenditura
 
 var world: Node                       # World (per le posizioni visive dei bersagli e la telecamera)
 var quality: int = 1
@@ -90,7 +91,7 @@ func warmup() -> void:
 			var n := _take("proj_" + t, _proj_factory(t))
 			n.position = Vector3(0, -40, 0)
 			tmp.append(n)
-	for k in ["blast", "blast_dire", "big_blast", "burst_fire", "burst_violet", "burst_gold", "burst_heal", "burst_dust", "ring", "column", "meteor", "flame_wall", "sparks", "dust", "debris", "crack"]:
+	for k in ["blast", "blast_dire", "big_blast", "burst_fire", "burst_violet", "burst_gold", "burst_heal", "burst_dust", "ring", "column", "meteor", "flame_wall", "sparks", "dust", "debris", "crack", "rock_wall", "quake_wall", "big_dust", "debris_small"]:
 		var e: Node3D = _take("fx_" + k, _fx_factory(k))
 		e.position = Vector3(0, -40, 0)
 		_restart(e)
@@ -280,7 +281,9 @@ func _fx_factory(kind: String) -> Callable:
 			"burst_dust": return VfxLib.make_burst(Color(0.75, 0.7, 0.6), 30, 2.0, 0.6)
 			"sparks": return VfxLib.make_hit_sparks(Color(1.0, 0.8, 0.45))
 			"dust": return VfxLib.make_dust(1.0)
+			"big_dust": return VfxLib.make_dust(2.6)
 			"debris": return VfxLib.make_debris(1.0)
+			"debris_small": return VfxLib.make_debris(0.55)
 			"ring":
 				var mi := MeshInstance3D.new()
 				mi.mesh = _ring_mesh
@@ -335,6 +338,50 @@ func _fx_factory(kind: String) -> Callable:
 				var m := ShaderMaterial.new()
 				m.shader = load("res://scripts/vfx/crack.gdshader")
 				m.set_shader_parameter("noise_tex", VfxLib.noise_tex())
+				mi.material_override = m
+				mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+				return mi
+			"rock_wall":
+				# muro della Fenditura: ROCK_COUNT rocce (mesh e materiale condivisi) disposte lungo una linea
+				var root := Node3D.new()
+				var files := ["rock_single_C.gltf", "rock_single_D.gltf", "rock_single_E.gltf", "rock_single_B.gltf"]
+				var mat := MapBuilder.static_material(Color(0.66, 0.6, 0.55), 0.9)
+				var rng := RandomNumberGenerator.new()
+				rng.seed = 77
+				for i in ROCK_COUNT:
+					var mi := MeshInstance3D.new()
+					mi.mesh = MapBuilder.model_mesh(files[i % files.size()])
+					# i sassi KayKit sono piccoli (~0.3 m): scala calcolata sulla misura vera di ogni mesh
+					var sz: Vector3 = mi.mesh.get_aabb().size if mi.mesh else Vector3(0.3, 0.15, 0.3)
+					mi.material_override = mat
+					mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if quality >= 2 else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+					# forma fissa per roccia: rotazione e proporzioni (alte e appuntite)
+					mi.set_meta("rot", rng.randf() * TAU)
+					mi.set_meta("tilt", rng.randf_range(-0.25, 0.25))
+					var want := Vector3(rng.randf_range(0.95, 1.3), rng.randf_range(1.4, 2.1), rng.randf_range(0.9, 1.2))
+					mi.set_meta("s", Vector3(want.x / maxf(sz.x, 0.05), want.y / maxf(sz.y, 0.05), want.z / maxf(sz.z, 0.05)))
+					mi.set_meta("side", rng.randf_range(-0.25, 0.25))
+					root.add_child(mi)
+				return root
+			"quake_wall":
+				# onda sismica dell'Eco del sisma: cilindro aperto con il "fuoco" color terra che sale
+				var mi := MeshInstance3D.new()
+				var cm := CylinderMesh.new()
+				cm.top_radius = 1.0
+				cm.bottom_radius = 1.0
+				cm.height = 1.0
+				cm.radial_segments = 28
+				cm.rings = 1
+				cm.cap_top = false
+				cm.cap_bottom = false
+				mi.mesh = cm
+				var m := ShaderMaterial.new()
+				m.shader = load("res://scripts/vfx/fire.gdshader")
+				m.set_shader_parameter("noise_tex", VfxLib.noise_tex())
+				m.set_shader_parameter("wall", 1.0)
+				m.set_shader_parameter("scroll", 1.2)
+				m.set_shader_parameter("intensity", 1.6)
+				m.render_priority = 1
 				mi.material_override = m
 				mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 				return mi
@@ -566,6 +613,133 @@ func effect(name: String, pos: Vector3, team: int) -> void:
 			_column(pos, Color(gold, 0.8), 1.2, 3.5, 0.45)
 			_ring(pos, Color(gold, 1.0), 1.8, 1.0, 0.4, 0.2, 0.2)
 			_particles("burst_gold", pos)
+		# --- Gorm ---
+		"totem_leap":
+			_ring(pos, Color(EARTH, 0.8), 0.5, 2.0, 0.35, 0.25)
+			if quality >= 1:
+				_group("dust", pos)
+		"totem_slam":
+			# il totem si schianta: anello di terra, colonna di rune, polvere
+			var rune := _rune_color(team)
+			_ring(pos, Color(EARTH, 1.0), 0.6, 2.6, 0.35, 0.3, 0.25)
+			_column(pos, Color(rune, 0.75), 0.7, 3.2, 0.4)
+			_particles("burst_dust", pos)
+			_flash_light(pos, rune, 4.0, 7.0, 0.35)
+			shake = maxf(shake, 0.22)
+		"aftershock":
+			# Scossa di ritorno: la terra si solleva ad anello attorno a Gorm (leggermente dopo il colpo)
+			var at := func():
+				_flame_wall(pos, EARTH_GLOW, 0.8, 3.5, 0.7, 0.4)
+				_ring(pos, Color(EARTH, 1.0), 0.8, 3.6, 0.42, 0.35, 0.3)
+				if quality >= 1:
+					_group("debris_small", pos + Vector3(0, 0.2, 0))
+					_group("dust", pos)
+				shake = maxf(shake, 0.25)
+			get_tree().create_timer(0.06).timeout.connect(at)
+		"totem_hit":
+			var rune2 := _rune_color(team)
+			_ring(pos, Color(rune2, 1.0), 0.3, 2.2, 0.3, 0.3, 0.2)
+			_column(pos, Color(rune2, 0.7), 0.5, 2.6, 0.3)
+			_spark_burst(pos + Vector3(0, 1.0, 0))
+			_particles("burst_dust", pos)
+			_flash_light(pos, rune2, 5.0, 7.0, 0.3)
+			shake = maxf(shake, 0.3)
+		"echo_hit":
+			var rune3 := _rune_color(team)
+			_ring(pos, Color(rune3, 1.0), 1.6, 0.3, 0.3, 0.25, 0.3)
+			_column(pos, Color(rune3, 0.65), 0.45, 2.2, 0.3)
+
+
+const EARTH := Color(0.95, 0.72, 0.42)          # anelli di terra e polvere luminosa (Gorm)
+const EARTH_GLOW := Color(0.9, 0.55, 0.25)
+
+
+static func _rune_color(team: int) -> Color:
+	return Color(1.0, 0.58, 0.18) if team == 0 else Color(0.72, 0.35, 1.0)
+
+
+## Fenditura: la terra si apre dalla base verso la punta e le rocce del muro emergono in sequenza;
+## dopo dur secondi sprofondano. Una sola istanza del muro (pool) per Fenditura attiva.
+func fissure(a: Vector3, b: Vector3, dur: float, team: int) -> void:
+	var glow := _rune_color(team)
+	var dir := b - a
+	var len := dir.length()
+	var wall := _take("fx_rock_wall", _fx_factory("rock_wall"))
+	wall.position = Vector3.ZERO
+	var yaw := atan2(-dir.z, dir.x)
+	var rocks := wall.get_children()
+	for i in rocks.size():
+		var mi := rocks[i] as MeshInstance3D
+		var k := (i + 0.5) / rocks.size()
+		var p := a.lerp(b, k)
+		var nrm := Vector3(-dir.z, 0, dir.x).normalized()
+		p += nrm * float(mi.get_meta("side"))
+		p.y = Terrain.height(Vector2(p.x, p.z))
+		mi.position = p
+		mi.rotation = Vector3(float(mi.get_meta("tilt")), float(mi.get_meta("rot")) + yaw, float(mi.get_meta("tilt")) * 0.6)
+		mi.scale = Vector3.ONE * 0.01
+		mi.set_meta("base_y", p.y)
+		# le rocce agli estremi sono più basse: profilo a "cresta"
+		mi.set_meta("h", 0.75 + 0.25 * sin(k * PI))
+		mi.set_meta("delay", 0.03 + k * 0.22)
+	_active.append({"node": wall, "t": 0.0, "dur": dur, "kind": "rock_wall"})
+	# crepa incandescente e solco scuro sotto il muro, polvere e detriti che seguono l'apertura
+	var cr := _take("fx_crack", _fx_factory("crack")) as MeshInstance3D
+	cr.position = (a + b) * 0.5 + Vector3(0, 0.12, 0)
+	cr.rotation = Vector3(0, yaw, 0)
+	cr.scale = Vector3(0.01, 1, 3.6)
+	var m := cr.material_override as ShaderMaterial
+	m.set_shader_parameter("color", glow)
+	m.set_shader_parameter("seed", randf() * 10.0)
+	m.set_shader_parameter("fade", 1.0)
+	_active.append({"node": cr, "t": 0.0, "dur": dur, "kind": "crack", "len": len, "a": a, "dir": dir})
+	_crack(a, b, 2.8, dur + 2.0)
+	var steps := 4
+	for i in steps:
+		var p2 := a.lerp(b, (i + 0.5) / steps)
+		var spawn := func():
+			_group("dust", p2)
+			if quality >= 1:
+				_group("debris", p2 + Vector3(0, 0.3, 0))
+		if i == 0:
+			spawn.call()
+		else:
+			get_tree().create_timer(0.06 * i).timeout.connect(spawn)
+	_ring(a, Color(EARTH, 1.0), 0.6, 2.6, 0.4, 0.3, 0.25)
+	_flash_light(a.lerp(b, 0.3), glow, 7.0, 13.0, 0.5)
+	shake = maxf(shake, 0.5)
+	# alla fine il muro sprofonda tra la polvere
+	get_tree().create_timer(maxf(0.1, dur - 0.45)).timeout.connect(func():
+		for i in 3:
+			_group("dust", a.lerp(b, (i + 0.5) / 3.0)))
+
+
+## Eco del sisma: onda sismica che si allarga da Gorm; quando raggiunge un nemico colpito
+## questo "risuona" (anello e colonna), poi gli echi arrivano con gli eventi echo_hit.
+func echo_slam(pos: Vector3, radius: float, victims: Array, team: int) -> void:
+	var glow := _rune_color(team)
+	var qw := _take("fx_quake_wall", _fx_factory("quake_wall")) as MeshInstance3D
+	qw.position = pos + Vector3(0, 0.55, 0)
+	qw.scale = Vector3(0.8, 1.2, 0.8)
+	var qm := qw.material_override as ShaderMaterial
+	qm.set_shader_parameter("color", EARTH_GLOW)
+	qm.set_shader_parameter("fade", 1.0)
+	_active.append({"node": qw, "t": 0.0, "dur": 0.55, "kind": "wall", "r0": 0.8, "r1": radius})
+	_ring(pos, Color(EARTH, 1.0), 0.8, radius + 0.4, 0.55, 0.25, 0.35)
+	_ring(pos, Color(glow, 1.0), 0.4, radius, 0.6, 0.1)
+	_group("big_dust", pos)
+	if quality >= 1:
+		_group("debris", pos + Vector3(0, 0.4, 0))
+	_flash_light(pos, glow, 10.0, 18.0, 0.6)
+	_scorch(pos, radius * 0.75, 7.0)
+	shake = maxf(shake, 0.85)
+	for v in victims:
+		var vp: Vector3 = v
+		var delay := vp.distance_to(pos) / radius * 0.5
+		get_tree().create_timer(maxf(0.01, delay)).timeout.connect(func():
+			_ring(vp, Color(glow, 1.0), 0.3, 1.8, 0.3, 0.3, 0.2)
+			if quality >= 1:
+				_group("dust", vp))
 
 
 ## Scintille di un colpo d'arma (ignora il limite di hit_sparks: sono eventi rari).
@@ -643,6 +817,29 @@ func _crack(a: Vector3, b: Vector3, width: float, dur: float) -> void:
 	_decal_t[i] = dur
 
 
+## Rocce della Fenditura: emergono con un piccolo rimbalzo, tremano appena, poi sprofondano negli ultimi 0.45 s.
+func _update_rock_wall(a: Dictionary) -> void:
+	var t: float = a.t
+	var left: float = a.dur - t
+	for c in (a.node as Node3D).get_children():
+		var mi := c as MeshInstance3D
+		var lt: float = t - float(mi.get_meta("delay"))
+		var s: Vector3 = mi.get_meta("s")
+		var h: float = mi.get_meta("h")
+		var grow := 0.0
+		if lt > 0.0:
+			# ritorno elastico: supera la misura finale e si assesta
+			var g := clampf(lt / 0.16, 0.0, 1.0)
+			grow = g + sin(g * PI) * 0.18
+		var sink := clampf(left / 0.45, 0.0, 1.0)
+		var k := maxf(0.01, grow * sink)
+		mi.scale = Vector3(s.x * (0.6 + 0.4 * k), s.y * h * k, s.z * (0.6 + 0.4 * k))
+		var jitter := 0.0
+		if lt > 0.0 and lt < 0.35:
+			jitter = sin(lt * 70.0) * 0.04 * (1.0 - lt / 0.35)
+		mi.position.y = float(mi.get_meta("base_y")) - 0.15 - (1.0 - sink) * 0.6 + jitter
+
+
 func _particles(kind: String, pos: Vector3) -> void:
 	_group(kind, pos)
 
@@ -671,6 +868,8 @@ func _process(delta: float) -> void:
 				(a.node.material_override as ShaderMaterial).set_shader_parameter("fade", 1.0 - k * k)
 			"meteor":
 				a.node.position = (a.from as Vector3).lerp(a.to, k * k)
+			"rock_wall":
+				_update_rock_wall(a)
 			"crack":
 				# si apre in 0.25 s dalla base verso la punta, poi si raffredda
 				var open_k: float = clampf(a.t / 0.25, 0.0, 1.0)

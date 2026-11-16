@@ -6,9 +6,11 @@ extends Node
 ##   --autotest-net-client [--port P] [--duration S] [--netsim latency=..,jitter=..,loss=..]
 ##   --shots <cartella>             sequenza di screenshot (menu, informazioni, partita, abilità, torre, negozio, animazioni, vittoria)
 ##   --views <cartella> [--views-quality Q]  inquadrature fisse per la revisione grafica (guado, corsia, basi...)
-##   --benchmark [--bench-seconds S] [--bench-preset Q] [--bench-at x,y] scenario di carico per ogni preset -> benchmark_results.md
+##   --benchmark [--bench-seconds S] [--bench-preset Q] [--bench-at x,y] [--bench-hero gorm] scenario di carico per ogni preset -> benchmark_results.md
 ##   --soak [--soak-minutes M]      partita lunga accelerata: memoria, nodi, creep incastrati, errori
-##   --duel [--duel-runs N]         duelli 1 contro 1 in simulazione pura (IA semplice) per confrontare gli eroi
+##   --duel [--duel-runs N] [--duel-level L] [--duel-pair a,b] [--duel-ban eroeN,..] [--duel-stats]
+##                                  duelli 1 contro 1 in simulazione pura (IA semplice) per confrontare gli eroi
+##                                  (DUEL_TRACE=1 nell'ambiente stampa gli eventi di ogni duello)
 ## Vedi wiki/systems/test-automatici.md.
 
 var main: Node
@@ -267,6 +269,7 @@ func _run_training() -> void:
 	check(u.pos.distance_to(before) > 5.0, "Scatto: teletrasporto di %.1f m" % u.pos.distance_to(before))
 
 	await _test_peppino(w)
+	await _test_gorm(w)
 
 	# Morte e rinascita
 	sim._kill(u, null)
@@ -361,6 +364,158 @@ func _test_peppino(w: World) -> void:
 	sim.queue_command(99, ["stop"])
 	tgt.max_hp = 300.0
 	tgt.hp = 1.0
+	await _wait_sim(w, w.game_time + 0.3)
+
+
+## Gorm: terzo eroe alleato comandato dal test (peer 98). Verifica Fenditura (danno, stordimento, muro che blocca
+## e poi si aggira), Totem (balzo, scossa, attacco potenziato), passiva non lanciabile, Eco del sisma (echi).
+func _test_gorm(w: World) -> void:
+	var sim := w.sim
+	var ghd := sim.add_hero(98, 0, "Gorm", "gorm")
+	var gu: Unit = sim.units[ghd.unit_id]
+	check(gu.subtype == "gorm" and not gu.is_ranged(), "Gorm creato (corpo a corpo, %d vita)" % int(gu.max_hp))
+	ghd.level = 6
+	ghd.ability_levels = [1, 1, 1, 1]
+	ghd.apply_stats(gu)
+	gu.hp = gu.max_hp
+	gu.mana = gu.max_mana
+	await _wait_sim(w, w.game_time + 0.2)
+	check(w.views.has(gu.id) and (w.views[gu.id] as UnitView).model_key == "hero_gorm" and (w.views[gu.id] as UnitView).totem_rune != null,
+		"vista di Gorm con il modello e il totem")
+	var refill := func():
+		for i in 4:
+			ghd.cooldowns[i] = 0.0
+		gu.mana = gu.max_mana
+	sim._spawn_wave()
+	await _wait_sim(w, w.game_time + 0.1)
+	var foes: Array[Unit] = []
+	for c in sim.unit_list:
+		if c.is_creep() and c.alive and c.team == 1 and c.max_hp < 99999.0:
+			foes.append(c)
+	check(foes.size() >= 3, "bersagli per Gorm (%d creep)" % foes.size())
+	if foes.size() < 3:
+		return
+	# bastano tre bersagli: tutti gli altri creep vengono rimossi e le ondate sospese (non devono intralciare)
+	foes.resize(3)
+	for c in sim.unit_list:
+		if c.is_creep() and c.alive and not foes.has(c):
+			sim._kill(c, null)
+	var wave_timer := sim._wave_timer
+	sim._wave_timer = 1e9
+	var tgt: Unit = foes[0]
+	for f in foes:
+		f.max_hp = 99999.0
+		f.hp = 99999.0
+		f.damage = 0.0
+	# lontano da torri ed eroi: al centro della corsia, i creep fermi (storditi) in fila
+	var base := Vector2(-6, 6)
+	var lane := MapData.lane_dir()
+	var nrm := MapData.lane_normal()
+	for i in foes.size():
+		foes[i].pos = base + nrm * (i * 1.6 - 1.0) + lane * 0.3 * i
+		foes[i].prev_pos = foes[i].pos
+		foes[i].stun_time = 30.0
+	# gli altri eroi lontano (da fermi attaccherebbero i bersagli e falserebbero i danni misurati)
+	var ku := w.local_hero_unit()
+	var pu0: Unit = sim.hero_unit(99)
+	for hu in [ku, pu0]:
+		if hu:
+			hu.pos = base - lane * 30.0
+			hu.prev_pos = hu.pos
+			sim.queue_command(hu.owner_peer, ["stop"])
+	# --- Fenditura (Q): da 5 m, lungo la corsia verso il bersaglio
+	gu.pos = tgt.pos - lane * 5.0
+	gu.prev_pos = gu.pos
+	sim.queue_command(98, ["cast", 0, tgt.pos.x, tgt.pos.y])
+	tgt.stun_time = 0.0
+	var hp0 := tgt.hp
+	await _wait_sim(w, w.game_time + 0.7)
+	check(tgt.hp < hp0 and tgt.stun_time > 0.0, "Fenditura: danno e stordimento in linea (%d)" % int(hp0 - tgt.hp))
+	check(sim.walls.size() == 1, "Fenditura: muro di roccia creato")
+	if sim.walls.size() == 1:
+		var wl: Dictionary = sim.walls[0]
+		var wa: Vector2 = wl.a
+		var wb: Vector2 = wl.b
+		var near_wall := Geometry2D.get_closest_point_to_segment(tgt.pos, wa, wb).distance_to(tgt.pos)
+		check(near_wall >= wl.w + tgt.radius - 0.05, "Fenditura: le unità sulla linea sono spinte fuori dal muro (%.2f m)" % near_wall)
+		# Peppino prova ad attraversare il muro perpendicolarmente al centro: si ferma, poi lo aggira
+		var pu: Unit = sim.hero_unit(99)
+		var mid := (wa + wb) * 0.5
+		var side := (wb - wa).normalized().orthogonal()
+		pu.pos = mid + side * 3.0
+		pu.prev_pos = pu.pos
+		pu.stun_time = 0.0
+		pu.target_id = 0
+		var goal := mid - side * 3.0
+		sim.queue_command(99, ["move", goal.x, goal.y])
+		await _wait_sim(w, w.game_time + 0.45)
+		var still := (pu.pos - mid).dot(side) > 0.0
+		var min_d := Geometry2D.get_closest_point_to_segment(pu.pos, wa, wb).distance_to(pu.pos)
+		check(still and min_d >= wl.w + pu.radius - 0.05, "Fenditura: il muro blocca il passaggio (%.2f m dal muro)" % min_d)
+		await _wait_sim(w, w.game_time + 3.0)
+		check(pu.pos.distance_to(goal) < 1.5, "Fenditura: il muro si aggira dalle estremità (%.1f m dalla meta)" % pu.pos.distance_to(goal))
+		sim.queue_command(99, ["stop"])
+		pu.pos = base - lane * 30.0
+		pu.prev_pos = pu.pos
+		await _wait_sim(w, w.game_time + float(Game.hero_abilities("gorm")[0].wall_time))
+		check(sim.walls.is_empty(), "Fenditura: il muro sparisce dopo %d s" % int(Game.hero_abilities("gorm")[0].wall_time))
+	# --- Passiva (E): non si lancia
+	refill.call()
+	var mana0 := gu.mana
+	sim.queue_command(98, ["cast", 2, gu.pos.x, gu.pos.y])
+	await _wait_sim(w, w.game_time + 0.2)
+	check(gu.mana == mana0 and ghd.cooldowns[2] == 0.0 and gu.state != Unit.State.CASTING, "Scossa di ritorno: passiva, non si lancia")
+	# --- Totem (W) con balzo: atterra vicino al bersaglio, la scossa stordisce, il colpo è potenziato
+	refill.call()
+	for f in foes:
+		f.stun_time = 0.0
+	var start := tgt.pos - lane * 5.5
+	gu.pos = start
+	gu.prev_pos = start
+	gu.target_id = 0
+	hp0 = tgt.hp
+	var land := tgt.pos - lane * 1.6
+	sim.queue_command(98, ["cast", 1, land.x, land.y])
+	var tw := w.game_time
+	var lifted := false
+	while w.game_time < tw + 1.0:
+		await get_tree().process_frame
+		var gv: UnitView = w.views.get(gu.id)
+		if gv and gv.model and gv.model.position.y > 0.8:
+			lifted = true
+	check(gu.pos.distance_to(start) > 3.5 and gu.empower_time > 0.0, "Totem: balzo di %.1f m e totem carico" % gu.pos.distance_to(start))
+	check(lifted, "Totem: il modello segue l'arco del balzo")
+	check(tgt.hp < hp0 and tgt.stun_time > 0.0, "Scossa di ritorno: all'atterraggio danno e stordimento (%d)" % int(hp0 - tgt.hp))
+	var gv2: UnitView = w.views.get(gu.id)
+	check(gv2 != null and gv2.empowered and gv2.totem_fire.visible, "Totem: rune accese sul totem carico")
+	hp0 = tgt.hp
+	var mult: float = 1.0 + float(Game.hero_abilities("gorm")[1].bonus[0])
+	var expect := gu.damage * mult * Game.armor_multiplier(tgt.armor)
+	sim.queue_command(98, ["attack", tgt.id])
+	var ta := w.game_time
+	while tgt.hp >= hp0 and w.game_time < ta + 3.0:
+		await get_tree().process_frame
+	check(absf((hp0 - tgt.hp) - expect) < 2.0 and gu.empower_time <= 0.0, "Totem: attacco potenziato (%d, atteso %d)" % [int(hp0 - tgt.hp), int(expect)])
+	sim.queue_command(98, ["stop"])
+	# --- Eco del sisma (R): danno subito, poi gli echi degli altri nemici
+	refill.call()
+	for f in foes:
+		f.stun_time = 0.0
+	gu.pos = tgt.pos - lane * 1.5
+	gu.prev_pos = gu.pos
+	hp0 = tgt.hp
+	sim.queue_command(98, ["cast", 3, gu.pos.x, gu.pos.y])
+	var r_ab: Dictionary = Game.hero_abilities("gorm")[3]
+	await _wait_sim(w, w.game_time + float(r_ab.cast_point) + 0.1)
+	var first := hp0 - tgt.hp
+	await _wait_sim(w, w.game_time + float(r_ab.echo_delay) + 0.1)
+	var total := hp0 - tgt.hp
+	check(first > 0.0 and total > first + 1.0 and ghd.cooldowns[3] > 0.0, "Eco del sisma: colpo %d + echi %d" % [int(first), int(total - first)])
+	for f in foes:
+		f.max_hp = 300.0
+		f.hp = 1.0
+		f.stun_time = 0.0
+	sim._wave_timer = minf(wave_timer, 5.0)
 	await _wait_sim(w, w.game_time + 0.3)
 
 
@@ -472,12 +627,27 @@ func _run_net_client() -> void:
 	var frame_jump_max := 0.0
 	var watch_id := 0
 	var watch_prev := Vector3.INF
+	# Gorm: in rete prova anche Fenditura e balzo del Totem (muro noto al client, flag del totem carico)
+	var gorm := u != null and u.subtype == "gorm"
+	var saw_wall := false
+	var saw_empower := false
+	if gorm:
+		w.send_command(["learn", 1])
 	while Time.get_ticks_msec() < t_end:
 		await get_tree().process_frame
 		var now := Time.get_ticks_msec()
+		if gorm:
+			saw_wall = saw_wall or not w._walls.is_empty()
+			var lu := w.local_hero_unit()
+			saw_empower = saw_empower or (lu != null and (lu.flags & Unit.F_EMPOWERED) != 0)
 		if now >= next_cmd:
 			next_cmd = now + 2500
 			u = w.local_hero_unit()
+			if gorm and u and u.alive and (step == 1 or step == 2):
+				var nxt: Vector2 = path[step % path.size()]
+				w.send_command(["cast", step - 1, nxt.x, nxt.y, 0])
+				await _wait(0.9)
+				watch_prev = Vector3.INF     # durante l'attesa il salto per frame non è stato misurato
 			if u and u.alive:
 				var e := _nearest_enemy(w, u.pos, u.team, 10.0)
 				if e and step >= 3 and randf() < 0.5:
@@ -511,6 +681,9 @@ func _run_net_client() -> void:
 	if lat <= 150.0:
 		check(avg_err < 0.3, "errore medio di riconciliazione < 0.3 m (%.3f)" % avg_err)
 	check(frame_jump_max < 1.5, "nessun teletrasporto visivo dei creep (salto max %.2f m)" % frame_jump_max)
+	if gorm:
+		check(saw_wall, "Gorm in rete: muro della Fenditura noto al client")
+		check(saw_empower, "Gorm in rete: totem carico trasmesso (flag a 16 bit)")
 	Net.leave()
 	_finish("NETTEST")
 
@@ -701,6 +874,28 @@ func _run_views() -> void:
 			_focus(w, hu.pos, 9.0)
 			await _wait(0.6)
 			await _shot(dir, "eroe")
+		elif w.local_hero_id() == "gorm":
+			# creep nemici vicini (fermi) per vedere scossa, echi e stordimenti
+			for c in w.sim.unit_list:
+				if c.is_creep() and c.team == 1 and c.alive:
+					c.pos = hu.pos + Vector2(randf_range(2.0, 6.0), randf_range(-6.0, -2.0))
+					c.prev_pos = c.pos
+					c.damage = 0.0
+					c.max_hp = 99999.0
+					c.hp = 99999.0
+			casts = [["fenditura", 0, Vector2(8, -6)], ["totem", 1, Vector2(4, -3)], ["eco", 3, Vector2.ZERO]]
+			_focus(w, hu.pos, 9.0)
+			await _wait(0.6)
+			await _shot(dir, "eroe")
+			# anteprima di mira della Fenditura (rettangolo verso il mouse)
+			_focus(w, hu.pos, 20.0)
+			await _wait(0.3)
+			var aim3 := MapData.to3(hu.pos + Vector2(8, -6))
+			Input.warp_mouse(w.cam.camera.unproject_position(aim3))
+			w.targeting_slot = 0
+			await _wait(0.3)
+			await _shot(dir, "mira_fenditura")
+			w._cancel_targeting()
 		for c in casts:
 			w.send_command(["cheat", "cooldowns"])
 			var tgt: Vector2 = hu.pos + c[2]
@@ -726,7 +921,9 @@ func _run_benchmark() -> void:
 	var presets := [0, 1, 2]
 	if Game.has_arg("--bench-preset"):
 		presets = [int(Game.arg_value("--bench-preset", "1"))]
-	Game.settings.hero = "kael"     # scenario fisso: stesse abilità a ogni misura
+	# scenario fisso: stesse abilità a ogni misura (--bench-hero gorm: muri, balzi ed echi a ripetizione)
+	Game.settings.hero = Game.arg_value("--bench-hero", "kael")
+	var bench_gorm: bool = Game.settings.hero == "gorm"
 	for q in presets:
 		Game.settings.quality = q
 		var w: World = main.start_training()
@@ -739,7 +936,7 @@ func _run_benchmark() -> void:
 				u.pos = MapData.closest_on_lane(u.pos).lerp(Vector2.ZERO, 0.8) + MapData.lane_normal() * u.lane_offset * 2.0
 				u.prev_pos = u.pos
 		w.send_command(["cheat", "invulnerable"])
-		w.sim.heroes[1].ability_levels = [4, 4, 4, 0]
+		w.sim.heroes[1].ability_levels = [4, 4, 4, 3] if bench_gorm else [4, 4, 4, 0]
 		var hu := w.local_hero_unit()
 		hu.pos = Vector2(-6, 6)
 		hu.prev_pos = hu.pos
@@ -789,7 +986,7 @@ func _run_benchmark() -> void:
 				w.send_command(["cheat", "cooldowns"])
 				var e := _nearest_enemy(w, hu.pos, 0, 14.0)
 				var target := e.pos if e else Vector2(5, -5)
-				w.send_command(["cast", [0, 2][randi() % 2], target.x, target.y, 0])
+				w.send_command(["cast", ([0, 1, 3] if bench_gorm else [0, 2])[randi() % (3 if bench_gorm else 2)], target.x, target.y, 0])
 				# mantiene lo scontro vivo: nuove ondate se i creep calano
 				if w.sim.unit_list.filter(func(x): return x.is_creep() and x.alive).size() < 40:
 					w.sim._spawn_wave()
@@ -916,12 +1113,14 @@ func _run_duel() -> void:
 	var runs := int(Game.arg_value("--duel-runs", "40"))
 	print("== DUELLI (%d per caso)" % runs)
 	var builds := {1: [], 3: ["sword"], 6: ["sword", "armor", "vitality"], 10: ["sword", "armor", "vitality", "boots", "vampire"]}
-	var pairs := [["kael", "kael"], ["peppino", "peppino"], ["kael", "peppino"]]
+	var pairs := [["kael", "kael"], ["peppino", "peppino"], ["gorm", "gorm"], ["kael", "peppino"], ["kael", "gorm"], ["peppino", "gorm"]]
 	var lines: Array[String] = []
 	var levels := [1, 3, 6, 10]
 	if Game.arg_value("--duel-level") != "":
 		levels = [int(Game.arg_value("--duel-level"))]
-		pairs = [["kael", "peppino"]]
+		pairs = [["kael", "peppino"], ["kael", "gorm"], ["peppino", "gorm"]]
+		if Game.arg_value("--duel-pair") != "":
+			pairs = [Game.arg_value("--duel-pair").split(",")]
 	if Game.has_arg("--duel-noitems"):
 		for k in builds:
 			builds[k] = []
@@ -994,7 +1193,7 @@ func _duel_once(h0: String, h1: String, lvl: int, items: Array, seed_n: int) -> 
 		sim.tick()
 		if Game.has_arg("--duel-stats"):
 			for e in sim.events:
-				if e[0] == "fx" and e[1] in ["meteor_hit", "explosion", "earthsplit", "cleave", "charge_hit", "shockwave"]:
+				if e[0] == "fx" and e[1] in ["meteor_hit", "explosion", "earthsplit", "cleave", "charge_hit", "shockwave", "fissure", "aftershock", "echo_slam", "totem_hit"]:
 					var k: String = e[1]
 					var victim := 1 if int(e[4]) == us[0].id else 0
 					var hit: bool = us[victim].hp < float(hp_before[victim]) - 1.0
@@ -1002,6 +1201,10 @@ func _duel_once(h0: String, h1: String, lvl: int, items: Array, seed_n: int) -> 
 					st[0] += 1
 					st[1] += 1 if hit else 0
 					_duel_stats[k] = st
+		if OS.get_environment("DUEL_TRACE") != "":
+			for e in sim.events:
+				if e[0] in ["fx", "cast"] or (e[0] == "dmg"):
+					print("T %.2f %s  hp %d/%d  st %.1f/%.1f  d %.1f  s0 %d s1 %d" % [t, str(e), us[0].hp, us[1].hp, us[0].stun_time, us[1].stun_time, us[0].pos.distance_to(us[1].pos), us[0].state, us[1].state])
 		sim.events.clear()
 		t += Game.TICK
 		if not us[0].alive or not us[1].alive:
@@ -1042,7 +1245,7 @@ func _duel_ai(sim: Sim, hd: HeroData, me: Unit, en: Unit, peer: int, _rng: Rando
 		return
 	var d := me.pos.distance_to(en.pos)
 	var ready := func(s: int) -> bool:
-		if Game.arg_value("--duel-ban") == "%s%d" % [hd.hero, s]:
+		if Game.arg_value("--duel-ban").split(",").has("%s%d" % [hd.hero, s]):
 			return false
 		var lvl: int = hd.ability_levels[s]
 		return lvl > 0 and hd.cooldowns[s] <= 0.0 and me.mana >= hd.abilities()[s].mana[lvl - 1]
@@ -1087,6 +1290,21 @@ func _duel_ai(sim: Sim, hd: HeroData, me: Unit, en: Unit, peer: int, _rng: Rando
 				return
 			if ready.call(0) and d <= 3.2:
 				cast.call(0, me.pos)
+				return
+		"gorm":
+			# combinazione tipica: balzo addosso (scossa) o Fenditura, poi Eco del sisma e colpo del totem
+			var vel2 := ((en.pos - en.prev_pos) / Game.TICK).limit_length(en.current_move_speed())
+			if ready.call(3) and d <= 5.5:
+				cast.call(3, me.pos)
+				return
+			if ready.call(1) and d > 2.6 and d <= 8.0:
+				cast.call(1, en.pos - (en.pos - me.pos).normalized() * 1.2)
+				return
+			if ready.call(0) and d <= 11.0 and not en.is_stunned():
+				cast.call(0, en.pos + vel2 * 0.5)
+				return
+			if ready.call(1) and d <= 2.6 and me.empower_time <= 0.0:
+				cast.call(1, me.pos)
 				return
 	if me.target_id != en.id:
 		sim.queue_command(peer, ["attack", en.id])

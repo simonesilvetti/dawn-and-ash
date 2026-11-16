@@ -6,7 +6,7 @@ extends RefCounted
 
 enum State { IDLE, MOVING, ATTACKING, CASTING, DEAD }
 
-# Flag di stato trasmessi negli snapshot (u8)
+# Flag di stato trasmessi negli snapshot (u16)
 const F_MOVING := 1
 const F_ATTACKING := 2
 const F_CASTING := 4
@@ -15,6 +15,7 @@ const F_DEAD := 16
 const F_INVULN := 32
 const F_SLOWED := 64
 const F_SHIELDED := 128             # Scudo di ferro di Peppino
+const F_EMPOWERED := 256            # Totem del sisma di Gorm carico (prossimo attacco potenziato)
 
 var id: int = 0
 var kind: int = Game.Kind.CREEP_MELEE
@@ -71,6 +72,10 @@ var dash_time: float = 0.0          # carica in corso (Peppino): l'unità scivol
 var dash_goal := Vector2.ZERO
 var dash_speed: float = 0.0
 var dash_slot: int = -1
+var dash_leap := false              # balzo (Totem di Gorm): passa sopra i muri della Fenditura
+var empower_time: float = 0.0       # Totem del sisma: prossimo attacco potenziato entro questo tempo
+var empower_mult: float = 1.0
+var empower_range: float = 0.0
 
 # Cast in corso
 var cast_slot: int = -1
@@ -130,6 +135,7 @@ func compute_flags() -> int:
 	if invulnerable: f |= F_INVULN
 	if slow_time > 0.0: f |= F_SLOWED
 	if shield_time > 0.0: f |= F_SHIELDED
+	if empower_time > 0.0: f |= F_EMPOWERED
 	return f
 
 
