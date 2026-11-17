@@ -173,3 +173,8 @@ dei muri, test di rete con Gorm a 80 ms e 150 ms + jitter + perdita, robustezza.
 lasciava una bruciatura scura di ~10 m per 7 s, che sull'acqua sembrava fuliggine e copriva le unità; ora è un piccolo
 cratere sotto Gorm (`Vfx.echo_slam`). GPU uguale a Kael, muri +10–15% del tick solo con 3 muri insieme, rete come gli
 altri eroi; il test di robustezza, fallito ieri a CPU carica, passa. Vedi [[benchmark]], [[test-di-rete]], [[gorm]].
+
+## [2026-11-17] ingest | Release v0.3.0 pubblicata
+Build Linux e Windows rifatte con `./build.sh`, provate (autotest sull'eseguibile Linux, `tools/windows_tests.sh` con
+Wine: autotest e rete Linux↔Windows OK) e pubblicate su GitHub come release `v0.3.0` (commit `95af709`, "Latest").
+Novità: Gorm, bilanciamento dei tre eroi. La 0.3.0 non gioca in rete con la 0.2.0. Vedi [[build-e-distribuzione]].

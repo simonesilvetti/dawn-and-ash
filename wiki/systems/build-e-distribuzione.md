@@ -2,7 +2,7 @@
 title: Build e distribuzione
 type: system
 tags: [build, export]
-updated: 2026-10-26
+updated: 2026-11-17
 sources: [build.sh, run.sh, export_presets.cfg, icon.ico, tools/fetch_templates.py, tools/make_installer.sh, tools/make_windows_zip.sh, tools/windows_tests.sh]
 ---
 
@@ -40,6 +40,10 @@ in un prefisso temporaneo che cancella alla fine. Esito del 2026-10-26 (Wine 11.
 - grafica: Vulkan Forward+ sulla Intel Iris Xe, 24 screenshot identici a quelli Linux (menu, HUD, negozio, VFX, vittoria);
 - rete Linux↔Windows in tutte e due le direzioni, anche a 150 ms con jitter e perdite: numeri come tra due Linux
   (vedi [[test-di-rete]]).
+
+Release **v0.3.0** (2026-11-17, con [[gorm]]): stesse prove sulle build esportate. Eseguibile Linux `AUTOTEST OK`;
+exe sotto Wine `AUTOTEST OK`; rete Linux↔Windows 0.159 / 0.161 m (max 1.23), a 150 ms + jitter + 3% 0.202 m (2.12).
+Allegati: `.run` 58 MB, zip Windows 67 MB, eseguibile Linux singolo 103 MB.
 
 > [!warning]
 > Wine non è Windows: avviso SmartScreen, firewall, driver video Windows (e l'eventuale D3D12) restano da provare su
