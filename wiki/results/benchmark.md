@@ -2,7 +2,7 @@
 title: Risultati dei benchmark
 type: result
 tags: [benchmark, fps]
-updated: 2026-11-16
+updated: 2026-11-17
 sources: [benchmark_results.md]
 ---
 
@@ -44,3 +44,10 @@ Console ornata, alloggiamenti e barre a shader (2026-10-22): +0.17 ms di GPU in 
 > (Media, 15 s): commit di partenza 21 e 23 FPS (GPU 21.7 e 24.0 ms), versione nuova 22 FPS (GPU 22.0 ms), scenario con
 > le abilità di Gorm a ripetizione (`--bench-hero gorm`: muri, balzi, echi ogni 0.7 s) 23 e 22 FPS (GPU 24.3 e 22.8 ms).
 > Nessuna differenza oltre il rumore. Da ripetere a macchina scarica.
+
+> [!note] Gorm, ripetuto il 2026-11-17 a CPU libera ma con il portatile a batteria (valori assoluti più bassi dello
+> storico anche per Kael, quindi non scritti in `benchmark_results.md`). A/B alternato, Media, 20 s: Kael 56 e 48 FPS
+> (GPU 15.6 e 17.2 ms), Gorm a ripetizione 48 e 48 FPS (GPU 16.9 e 16.4 ms): **GPU uguale**. Il tick di simulazione
+> dello scenario Gorm è un po' più alto (abilità ogni 0.7 s senza ricarica, R compresa). Misura isolata del costo dei
+> muri (solo simulazione, 5 ondate al centro, 600 tick): senza muri 624–674 µs, **con 3 muri insieme 699–786 µs**
+> (+10–15%); in partita c'è al massimo un muro (dura 5 s, ricarica ≥ 15 s), quindi il costo reale è trascurabile.

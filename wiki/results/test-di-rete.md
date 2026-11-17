@@ -2,7 +2,7 @@
 title: Risultati dei test di rete
 type: result
 tags: [rete, lag]
-updated: 2026-11-16
+updated: 2026-11-17
 sources: [tools/net_tests.sh, tools/windows_tests.sh]
 ---
 
@@ -41,3 +41,7 @@ visti dal client, 250+5% 0.197 (1.99, 50 persi); banda 8.4–8.5 KB/s come prima
 
 > [!warning] Il caso di robustezza fallisce ("nuova partita di allenamento dopo la disconnessione") **anche sul commit
 > di partenza `1ea3f01`**, con la CPU occupata da altri processi: non dipende da Gorm. Da ricontrollare a macchina scarica.
+> **Ricontrollato il 2026-11-17 a CPU libera: `[OK]`.** Era il carico della macchina.
+
+Verifica del 2026-11-17 a CPU libera: **Gorm a 80 ms 0.171 m (max 1.53)**, **Gorm a 150 ms + jitter 30 + 3% 0.208 m
+(2.21, 32 persi)**; banda 8.4–8.5 KB/s, salto creep 0.14–0.21 m. Come Kael e Peppino nelle stesse condizioni.

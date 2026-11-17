@@ -731,7 +731,7 @@ func echo_slam(pos: Vector3, radius: float, victims: Array, team: int) -> void:
 	if quality >= 1:
 		_group("debris", pos + Vector3(0, 0.4, 0))
 	_flash_light(pos, glow, 10.0, 18.0, 0.6)
-	_scorch(pos, radius * 0.75, 7.0)
+	_scorch(pos, 2.2, 3.0)    # solo il cratere sotto Gorm: una macchia larga sembra fuliggine, non polvere
 	shake = maxf(shake, 0.85)
 	for v in victims:
 		var vp: Vector3 = v

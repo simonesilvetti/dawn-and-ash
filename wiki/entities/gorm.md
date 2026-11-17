@@ -2,7 +2,7 @@
 title: Gorm, lo Scuotiterra
 type: entity
 tags: [eroe, personaggio]
-updated: 2026-11-16
+updated: 2026-11-17
 sources: [scripts/autoload/Game.gd, scripts/sim/Sim.gd, scripts/sim/MapData.gd, scripts/world/UnitView.gd, scripts/world/World.gd, scripts/vfx/Vfx.gd, scripts/debug/AutoTest.gd]
 ---
 
@@ -68,7 +68,8 @@ La passiva non si lancia: premere E mostra "abilità passiva" (`World.try_abilit
   con anello, colonna, scintille e luce.
 - **Scossa di ritorno**: muro basso color terra e anello che si allargano fino a 3.5 m, piccoli detriti (+0.06 s dopo il colpo).
 - **Eco del sisma** (`Vfx.echo_slam`): onda sismica (cilindro con lo shader del fuoco color terra) che si allarga a 7 m,
-  doppio anello, grande nuvola di polvere, detriti, luce e scossa forte della telecamera; ogni nemico colpito "risuona"
+  doppio anello, grande nuvola di polvere, detriti, luce, piccolo cratere sotto Gorm (2.2 m, 3 s: una bruciatura larga
+  quanto l'area sembrava fuliggine sull'acqua) e scossa forte della telecamera; ogni nemico colpito "risuona"
   quando l'onda lo raggiunge e di nuovo all'arrivo dell'eco (`echo_hit`).
 - Stordimento visibile per tutti gli eroi e i creep: stelline che girano sopra la testa (`UnitView._update_stun_fx`).
 - Suoni: `collapse` + `big_explosion` (Fenditura), `shockwave` (totem), `hit_punch_*` (scossa, echi), `explosion_1`

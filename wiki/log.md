@@ -166,3 +166,10 @@ Richiesta dell'utente: rendere gli eroi più equilibrati. Trovato un errore nei 
 (scarto medio di vita) accanto alle vittorie. Ritoccati Kael (più vita), Peppino (più mana, Fendente più economico,
 meno vita per livello) e Gorm (vedi [[bilanciamento]]); IA dei duelli di Gorm che tiene il balzo contro lo Scatto.
 Scarto entro ±8% in tutte le 12 combinazioni; autotest OK.
+
+## [2026-11-17] test | Prova completa di Gorm: fluidità, animazioni, consumi
+Fotogrammi ravvicinati delle abilità (`--views-fx --views-hero gorm`), benchmark A/B Kael/Gorm, misura isolata del costo
+dei muri, test di rete con Gorm a 80 ms e 150 ms + jitter + perdita, robustezza. Unico difetto trovato: l'Eco del sisma
+lasciava una bruciatura scura di ~10 m per 7 s, che sull'acqua sembrava fuliggine e copriva le unità; ora è un piccolo
+cratere sotto Gorm (`Vfx.echo_slam`). GPU uguale a Kael, muri +10–15% del tick solo con 3 muri insieme, rete come gli
+altri eroi; il test di robustezza, fallito ieri a CPU carica, passa. Vedi [[benchmark]], [[test-di-rete]], [[gorm]].
